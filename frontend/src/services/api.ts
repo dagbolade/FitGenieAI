@@ -41,7 +41,7 @@ export const apiService = {
     }
   },
 
-  // Generate a workout based on user profile
+  // Generate a workout based on user profile and
   generateWorkout: async (userProfile) => {
     try {
       const response = await fetch(`${API_URL}/generate-workout`, {
