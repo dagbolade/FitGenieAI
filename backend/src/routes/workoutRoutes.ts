@@ -6,13 +6,16 @@ import {
   createWorkout,
   updateWorkout,
   deleteWorkout,
-  generateWorkout
+  generateWorkout,
+  addExercisesToWorkout
 } from '../controllers/workoutController';
 
 const router = Router();
 
 // GET all workouts with optional filters
 router.get('/', getWorkouts);
+
+router.post('/:id/exercises', addExercisesToWorkout);
 
 // GET a specific workout
 router.get('/:id', getWorkoutById);

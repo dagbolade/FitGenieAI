@@ -3,6 +3,17 @@ import { Request, Response } from 'express';
 import Workout, { IWorkout } from '../models/Workout';
 import Exercise from '../models/Exercise'; // We'll use this to get exercise details when generating workouts
 
+interface ExerciseDocument {
+  _id: mongoose.Types.ObjectId;
+  name: string;
+  equipment: string;
+  primaryMuscles: string[];
+  instructions: string[];
+  mechanic?: string;
+  secondaryMuscles?: string[];
+  images?: string[];
+}
+
 // Get all workouts
 export const getWorkouts = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -88,6 +99,63 @@ export const deleteWorkout = async (req: Request, res: Response): Promise<void> 
     res.status(200).json({ message: 'Workout deleted successfully' });
   } catch (error) {
     res.status(500).json({ message: 'Error deleting workout', error });
+  }
+};
+
+
+import mongoose from "mongoose";
+
+// Add exercises to a user's workout
+export const addExercisesToWorkout = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { workoutId, exerciseIds } = req.body;
+
+    if (!workoutId || !exerciseIds || !Array.isArray(exerciseIds)) {
+      res.status(400).json({ message: 'Workout ID and exercise IDs are required' });
+      return;
+    }
+
+    // Find the workout
+    const workout = await Workout.findById(workoutId);
+
+    if (!workout) {
+      res.status(404).json({ message: 'Workout not found' });
+      return;
+    }
+
+    // Find all the exercises with explicit typing
+    const exercises = await Exercise.find({ _id: { $in: exerciseIds } }) as (ExerciseDocument & { _id: mongoose.Types.ObjectId })[];
+
+    if (exercises.length === 0) {
+      res.status(404).json({ message: 'No valid exercises found' });
+      return;
+    }
+
+    // Format exercises for the workout with proper typing
+    const formattedExercises = exercises.map(ex => ({
+      id: ex._id.toString(), // Now TypeScript knows _id exists and has toString()
+      name: ex.name,
+      sets: 3, // Default values
+      reps: '10-12',
+      rest_seconds: 60,
+      equipment: ex.equipment,
+      primaryMuscles: ex.primaryMuscles,
+      instructions: ex.instructions
+    }));
+
+    // Use type assertion to add exercises to workout
+    (workout.exercises as any[]).push(...formattedExercises);
+
+    // Save the updated workout
+    await workout.save();
+
+    res.status(200).json({
+      message: 'Exercises added to workout successfully',
+      workout
+    });
+  } catch (error) {
+    console.error('Error adding exercises to workout:', error);
+    res.status(500).json({ message: 'Error adding exercises to workout', error });
   }
 };
 
