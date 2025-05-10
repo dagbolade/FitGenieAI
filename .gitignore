@@ -1,2 +1,5 @@
 .env
 .env.production
+/backend/.env
+/frontend/.env
+/frontend/.env.production
