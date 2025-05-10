@@ -1,8 +1,8 @@
-// src/services/api.ts
-const API_URL = 'http://localhost:8000/api';
+// frontend/src/services/api.ts
+const API_URL = 'http://localhost:4000/api';
 
 export const apiService = {
-  // Get all exercises
+  // Exercise-related functions
   getExercises: async (filters = {}) => {
     try {
       const queryParams = new URLSearchParams();
@@ -25,26 +25,66 @@ export const apiService = {
     }
   },
 
-  // Get a specific exercise by ID
   getExerciseById: async (id) => {
     try {
-      const response = await fetch(`${API_URL}/exercise/${id}`);
+      console.log(`Fetching exercise with ID: ${id}`); // Add this log
+      const response = await fetch(`${API_URL}/exercises/${id}`);
 
       if (!response.ok) {
-        throw new Error('Failed to fetch exercise details');
+        const errorText = await response.text(); // Get the error message
+        console.error(`API Error (${response.status}):`, errorText); // Add this log
+        throw new Error(`Failed to fetch exercise details: ${response.status}`);
       }
 
-      return await response.json();
+      const data = await response.json();
+      console.log('Exercise data received:', data); // Add this log
+      return data;
     } catch (error) {
       console.error('Error fetching exercise details:', error);
       throw error;
     }
   },
 
-  // Generate a workout based on user profile and
+  // Workout-related functions
+  getWorkouts: async (filters = {}) => {
+    try {
+      const queryParams = new URLSearchParams();
+
+      if (filters.level) queryParams.append('level', filters.level);
+      if (filters.goal) queryParams.append('goal', filters.goal);
+      if (filters.type) queryParams.append('type', filters.type);
+
+      const response = await fetch(`${API_URL}/workouts?${queryParams.toString()}`);
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch workouts');
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching workouts:', error);
+      throw error;
+    }
+  },
+
+  getWorkoutById: async (id) => {
+    try {
+      const response = await fetch(`${API_URL}/workouts/${id}`);
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch workout details');
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching workout details:', error);
+      throw error;
+    }
+  },
+
   generateWorkout: async (userProfile) => {
     try {
-      const response = await fetch(`${API_URL}/generate-workout`, {
+      const response = await fetch(`${API_URL}/workouts/generate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -63,13 +103,72 @@ export const apiService = {
     }
   },
 
-  // Ask the AI coach a question
+  createWorkout: async (workout) => {
+    try {
+      const response = await fetch(`${API_URL}/workouts`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(workout),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to create workout');
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error creating workout:', error);
+      throw error;
+    }
+  },
+
+  updateWorkout: async (id, workout) => {
+    try {
+      const response = await fetch(`${API_URL}/workouts/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(workout),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update workout');
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error updating workout:', error);
+      throw error;
+    }
+  },
+
+  deleteWorkout: async (id) => {
+    try {
+      const response = await fetch(`${API_URL}/workouts/${id}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete workout');
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error deleting workout:', error);
+      throw error;
+    }
+  },
+
+  // AI coach function
   askCoach: async (query, userProfile = null) => {
     try {
       const payload = { query };
       if (userProfile) payload.user_profile = userProfile;
 
-      const response = await fetch(`${API_URL}/ask-coach`, {
+      const response = await fetch(`${API_URL}/ai-coach`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

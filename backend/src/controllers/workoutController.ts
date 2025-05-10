@@ -1,5 +1,7 @@
+// backend/src/controllers/workoutController.ts
 import { Request, Response } from 'express';
 import Workout, { IWorkout } from '../models/Workout';
+import Exercise from '../models/Exercise'; // We'll use this to get exercise details when generating workouts
 
 // Get all workouts
 export const getWorkouts = async (req: Request, res: Response): Promise<void> => {
@@ -86,5 +88,142 @@ export const deleteWorkout = async (req: Request, res: Response): Promise<void> 
     res.status(200).json({ message: 'Workout deleted successfully' });
   } catch (error) {
     res.status(500).json({ message: 'Error deleting workout', error });
+  }
+};
+
+// Generate a workout
+export const generateWorkout = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { goal, level, equipment, duration, split_type, day } = req.body;
+
+    // Query exercises matching the criteria
+    let exerciseQuery: any = {
+      level: level,
+      equipment: { $in: equipment }
+    };
+
+    // Filter by muscle groups based on split type and day
+    if (split_type === 'ppl' && day) {
+      if (day === 'push') {
+        exerciseQuery.force = 'push';
+      } else if (day === 'pull') {
+        exerciseQuery.force = 'pull';
+      } else if (day === 'legs') {
+        exerciseQuery.primaryMuscles = {
+          $in: ['quadriceps', 'hamstrings', 'calves', 'glutes']
+        };
+      }
+    }
+
+    // Find matching exercises
+    let exercises = await Exercise.find(exerciseQuery).limit(50);
+
+    // If not enough exercises found, loosen criteria
+    if (exercises.length < 5) {
+      // Remove equipment restriction
+      delete exerciseQuery.equipment;
+      exercises = await Exercise.find(exerciseQuery).limit(50);
+    }
+
+    // Determine how many exercises based on duration (approx 10 min per exercise)
+    const exerciseCount = Math.max(3, Math.min(8, Math.floor(duration / 10)));
+
+    // Separate compound and isolation exercises
+    const compoundExercises = exercises.filter(ex => ex.mechanic === 'compound');
+    const isolationExercises = exercises.filter(ex => ex.mechanic === 'isolation');
+
+    // Select exercises with priority for compound movements
+    const numCompound = Math.ceil(exerciseCount * 0.6); // 60% compound
+    const numIsolation = exerciseCount - numCompound; // 40% isolation
+
+    // Randomly select exercises
+    const selectedCompound = compoundExercises
+      .sort(() => 0.5 - Math.random())
+      .slice(0, Math.min(numCompound, compoundExercises.length));
+
+    const selectedIsolation = isolationExercises
+      .sort(() => 0.5 - Math.random())
+      .slice(0, Math.min(numIsolation, isolationExercises.length));
+
+    // If we don't have enough in either category, fill from the other
+    const selectedExercises = [...selectedCompound, ...selectedIsolation]
+      .sort(() => 0.5 - Math.random())
+      .slice(0, exerciseCount);
+
+    // Format exercises based on goal (sets, reps, rest)
+    const formattedExercises = selectedExercises.map(ex => {
+      let sets = 3;
+      let reps = '10-12';
+      let rest = 60;
+
+      // Adjust based on goal
+      if (goal === 'strength') {
+        sets = ex.mechanic === 'compound' ? 5 : 3;
+        reps = ex.mechanic === 'compound' ? '3-5' : '6-8';
+        rest = ex.mechanic === 'compound' ? 180 : 120;
+      } else if (goal === 'muscle building' || goal === 'hypertrophy') {
+        sets = ex.mechanic === 'compound' ? 4 : 3;
+        reps = '8-12';
+        rest = ex.mechanic === 'compound' ? 90 : 60;
+      } else if (goal === 'fat loss') {
+        sets = 3;
+        reps = '12-15';
+        rest = 45;
+      } else if (goal === 'endurance') {
+        sets = 3;
+        reps = '15-20';
+        rest = 30;
+      }
+
+      return {
+        id: ex._id,
+        name: ex.name,
+        sets: sets,
+        reps: reps,
+        rest_seconds: rest,
+        equipment: ex.equipment,
+        primaryMuscles: ex.primaryMuscles,
+        secondaryMuscles: ex.secondaryMuscles,
+        instructions: ex.instructions,
+        images: ex.images
+      };
+    });
+
+    // Create workout name and description
+    let workoutName = '';
+    let workoutDescription = '';
+
+    if (split_type === 'ppl' && day) {
+      workoutName = `${day.charAt(0).toUpperCase() + day.slice(1)} Day for ${goal.charAt(0).toUpperCase() + goal.slice(1)}`;
+
+      if (day === 'push') {
+        workoutDescription = 'Focus on chest, shoulders, and triceps with movements that involve pushing weight away from your body.';
+      } else if (day === 'pull') {
+        workoutDescription = 'Focus on back and biceps with movements that involve pulling weight toward your body.';
+      } else if (day === 'legs') {
+        workoutDescription = 'Focus on quadriceps, hamstrings, glutes, and calves to build lower body strength and power.';
+      }
+    } else {
+      workoutName = `${split_type.charAt(0).toUpperCase() + split_type.slice(1)} Workout for ${goal.charAt(0).toUpperCase() + goal.slice(1)}`;
+      workoutDescription = `A ${split_type} workout designed to help you achieve your ${goal} goals.`;
+    }
+
+    // Create the workout
+    const newWorkout = new Workout({
+      name: workoutName,
+      description: workoutDescription,
+      goal: goal,
+      level: level,
+      type: day || split_type,
+      duration: duration,
+      exercises: formattedExercises
+    });
+
+    // Save to database
+    const savedWorkout = await newWorkout.save();
+
+    res.status(201).json(savedWorkout);
+  } catch (error) {
+    res.status(500).json({ message: 'Error generating workout', error });
   }
 };

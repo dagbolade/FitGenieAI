@@ -28,6 +28,12 @@ export default function Navbar() {
             <Link to="/dashboard" className={location.pathname === '/dashboard' ? 'font-medium' : 'hover:text-blue-200'}>
               Dashboard
             </Link>
+            <Link
+                to="/ai-coach"
+                className={location.pathname === '/ai-coach' ? 'font-medium' : 'hover:text-blue-200'}
+              >
+                AI Coach
+            </Link>
             <button className="bg-white text-blue-600 hover:bg-blue-50 px-4 py-1 rounded-lg font-medium">
               Sign In
             </button>
