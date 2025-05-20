@@ -10,6 +10,7 @@ export interface IUserWorkout extends Document {
   completed: boolean;
   completedAt?: Date;
   duration: number;
+  caloriesBurned: number;
   exercises: Array<{
     exerciseId: Schema.Types.ObjectId;
     name: string;
@@ -31,6 +32,7 @@ const UserWorkoutSchema = new Schema<IUserWorkout>({
   completed: { type: Boolean, default: false },
   completedAt: { type: Date },
   duration: { type: Number, required: true },
+  caloriesBurned: { type: Number, default: 0 },
   exercises: [{
     exerciseId: { type: Schema.Types.ObjectId, ref: 'Exercise' },
     name: String,

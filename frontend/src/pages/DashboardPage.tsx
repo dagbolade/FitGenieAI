@@ -31,8 +31,9 @@ interface DashboardStats {
   totalWorkouts: number;
   completedWorkouts: number;
   totalExercises: number;
+  totalCaloriesBurned: number;
   favoriteExercises: Array<{ name: string; count: number }>;
-  weeklyActivity: Array<{ day: string; minutes: number }>;
+  weeklyActivity: Array<{ day: string; minutes: number; calories: number }>;
   muscleGroups: Array<{ name: string; percentage: number }>;
 }
 
@@ -115,37 +116,54 @@ const DashboardPage: React.FC = () => {
 
   // Prepare weekly activity chart data
   const getWeeklyActivityChartData = () => {
-    if (!userStats?.weeklyActivity) {
-      return {
-        labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
-        datasets: [
-          {
-            label: 'Minutes',
-            data: [0, 0, 0, 0, 0, 0, 0],
-            backgroundColor: 'rgba(75, 192, 192, 0.6)',
-          },
-        ],
-      };
-    }
-
-    // Reorder days to start with Monday
-    const orderedDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    const dayMap = userStats.weeklyActivity.reduce((acc, day) => {
-      acc[day.day] = day.minutes;
-      return acc;
-    }, {} as Record<string, number>);
-
+  if (!userStats?.weeklyActivity) {
     return {
-      labels: orderedDays,
+      labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
       datasets: [
         {
           label: 'Minutes',
-          data: orderedDays.map(day => dayMap[day] || 0),
+          data: [0, 0, 0, 0, 0, 0, 0],
           backgroundColor: 'rgba(75, 192, 192, 0.6)',
+          yAxisID: 'y-minutes',
         },
-      ],
+        {
+          label: 'Calories',
+          data: [0, 0, 0, 0, 0, 0, 0],
+          backgroundColor: 'rgba(255, 159, 64, 0.6)',
+          yAxisID: 'y-calories',
+        }
+      ]
     };
+  }
+
+     // Reorder days to start with Monday
+  const orderedDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const dayMap = userStats.weeklyActivity.reduce((acc, day) => {
+    acc[day.day] = {
+      minutes: day.minutes,
+      calories: day.calories || 0
+    };
+    return acc;
+  }, {} as Record<string, { minutes: number, calories: number }>);
+
+  return {
+    labels: orderedDays,
+    datasets: [
+      {
+        label: 'Minutes',
+        data: orderedDays.map(day => dayMap[day]?.minutes || 0),
+        backgroundColor: 'rgba(75, 192, 192, 0.6)',
+        yAxisID: 'y-minutes',
+      },
+      {
+        label: 'Calories',
+        data: orderedDays.map(day => dayMap[day]?.calories || 0),
+        backgroundColor: 'rgba(255, 159, 64, 0.6)',
+        yAxisID: 'y-calories',
+      }
+    ]
   };
+};
 
   const repairStats = async () => {
   try {
@@ -228,21 +246,37 @@ const DashboardPage: React.FC = () => {
     };
   };
 
-  // Chart options
-  const chartOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: {
-        display: false,
+  // Update the chart options to include dual y-axes
+const chartOptions = {
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: {
+    legend: {
+      display: true, // Show the legend for calories and minutes
+    },
+  },
+  scales: {
+    'y-minutes': {
+      position: 'left',
+      beginAtZero: true,
+      title: {
+        display: true,
+        text: 'Minutes'
       },
     },
-    scales: {
-      y: {
-        beginAtZero: true,
+    'y-calories': {
+      position: 'right',
+      beginAtZero: true,
+      title: {
+        display: true,
+        text: 'Calories'
       },
-    },
-  };
+      grid: {
+        drawOnChartArea: false // only want the grid lines for the first y-axis to show
+      }
+    }
+  },
+};
 
   // Get personalized recommendation
   const getRecommendation = () => {
@@ -353,6 +387,13 @@ const DashboardPage: React.FC = () => {
                 </span>
                   <span className="text-gray-600">Completion Rate</span>
                 </div>
+              </div>
+
+              <div className="bg-orange-50 rounded-lg p-4 text-center">
+                  <span className="block text-4xl font-bold text-orange-600">
+                    {userStats?.totalCaloriesBurned || 0}
+                  </span>
+                <span className="text-gray-600">Calories Burned</span>
               </div>
 
               <div>

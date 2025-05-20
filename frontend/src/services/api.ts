@@ -14,7 +14,9 @@ const createAuthHeaders = () => {
 };
 
 export const apiService = {
-    // Authentication functions
+  API_URL, // Export the API_URL for access in other components
+
+  // Authentication functions
   register: async (userData: any) => {
     try {
       const response = await fetch(`${API_URL}/auth/register`, {
@@ -70,9 +72,8 @@ export const apiService = {
     }
   },
 
-
   // Exercise-related functions
-  getExercises: async (filters = {}) => {
+  getExercises: async (filters: any = {}) => {
     try {
       const queryParams = new URLSearchParams();
 
@@ -94,19 +95,19 @@ export const apiService = {
     }
   },
 
-  getExerciseById: async (id) => {
+  getExerciseById: async (id: string) => {
     try {
-      console.log(`Fetching exercise with ID: ${id}`); // Add this log
+      console.log(`Fetching exercise with ID: ${id}`);
       const response = await fetch(`${API_URL}/exercises/${id}`);
 
       if (!response.ok) {
-        const errorText = await response.text(); // Get the error message
-        console.error(`API Error (${response.status}):`, errorText); // Add this log
+        const errorText = await response.text();
+        console.error(`API Error (${response.status}):`, errorText);
         throw new Error(`Failed to fetch exercise details: ${response.status}`);
       }
 
       const data = await response.json();
-      console.log('Exercise data received:', data); // Add this log
+      console.log('Exercise data received:', data);
       return data;
     } catch (error) {
       console.error('Error fetching exercise details:', error);
@@ -114,9 +115,8 @@ export const apiService = {
     }
   },
 
-
   // Workout-related functions - auth required
-  getWorkouts: async (filters = {}) => {
+  getWorkouts: async (filters: any = {}) => {
     try {
       const queryParams = new URLSearchParams();
 
@@ -139,7 +139,7 @@ export const apiService = {
     }
   },
 
-  getWorkoutById: async (id) => {
+  getWorkoutById: async (id: string) => {
     try {
       const response = await fetch(`${API_URL}/workouts/${id}`, {
         headers: createAuthHeaders()
@@ -156,7 +156,7 @@ export const apiService = {
     }
   },
 
-  generateWorkout: async (userProfile) => {
+  generateWorkout: async (userProfile: any) => {
     try {
       const response = await fetch(`${API_URL}/workouts/generate`, {
         method: 'POST',
@@ -175,8 +175,7 @@ export const apiService = {
     }
   },
 
-
-  updateWorkoutProgress: async (id, exercises) => {
+  updateWorkoutProgress: async (id: string, exercises: any[]) => {
     try {
       const response = await fetch(`${API_URL}/user-workouts/${id}/progress`, {
         method: 'PUT',
@@ -195,28 +194,40 @@ export const apiService = {
     }
   },
 
-  deleteWorkout: async (id) => {
-  try {
-    const response = await fetch(`${API_URL}/workouts/${id}`, {
-      method: 'DELETE',
-    });
+  deleteWorkout: async (id: string) => {
+    try {
+      console.log(`Deleting workout with ID: ${id}`);
 
-    if (!response.ok) {
-      throw new Error('Failed to delete workout');
+      // Make sure we're using the correct URL and authentication
+      const response = await fetch(`${API_URL}/workouts/${id}`, {
+        method: 'DELETE',
+        headers: createAuthHeaders()
+      });
+
+      // Log more detailed error information
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`Delete workout error (${response.status}):`, errorText);
+        throw new Error(`Failed to delete workout: ${response.status} ${errorText}`);
+      }
+
+      // Return the response as JSON (or return a simple success)
+      try {
+        return await response.json();
+      } catch (e) {
+        // If the response is not JSON, just return a success message
+        return { success: true };
+      }
+    } catch (error) {
+      console.error('Error deleting workout:', error);
+      throw error;
     }
-
-    return await response.json();
-  } catch (error) {
-    console.error('Error deleting workout:', error);
-    throw error;
-  }
-},
+  },
 
   // AI coach function
-   // AI coach function
-  askCoach: async (query, userProfile = null) => {
+  askCoach: async (query: string, userProfile: any = null) => {
     try {
-      const payload = { query };
+      const payload: any = { query };
       if (userProfile) payload.user_profile = userProfile;
 
       const response = await fetch(`${API_URL}/ai-coach`, {
@@ -236,8 +247,7 @@ export const apiService = {
     }
   },
 
-  // Update this function in your apiService
-  createWorkout: async (workoutData) => {
+  createWorkout: async (workoutData: any) => {
     try {
       const response = await fetch(`${API_URL}/workouts`, {
         method: 'POST',
@@ -257,13 +267,11 @@ export const apiService = {
   },
 
   // Add exercises to workout
-  addExercisesToWorkout: async (workoutId, exerciseIds) => {
+  addExercisesToWorkout: async (workoutId: string, exerciseIds: string[]) => {
     try {
       const response = await fetch(`${API_URL}/workouts/${workoutId}/exercises`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: createAuthHeaders(),
         body: JSON.stringify({ exerciseIds }),
       });
 
@@ -278,86 +286,65 @@ export const apiService = {
     }
   },
 
-  // src/services/api.ts
-// Add these functions to your existing apiService
-
   // Dashboard-related functions - auth required
   getDashboardData: async () => {
-  try {
-    console.log('Fetching dashboard data...');
-    const response = await fetch(`${API_URL}/dashboard`, {
-      headers: createAuthHeaders()
-    });
+    try {
+      console.log('Fetching dashboard data...');
+      const response = await fetch(`${API_URL}/dashboard`, {
+        headers: createAuthHeaders()
+      });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`Dashboard API Error (${response.status}):`, errorText);
-      throw new Error(`Failed to fetch dashboard data: ${response.status}`);
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`Dashboard API Error (${response.status}):`, errorText);
+        throw new Error(`Failed to fetch dashboard data: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('Dashboard data received:', data);
+      return data;
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error);
+      throw error;
     }
-
-    const data = await response.json();
-    console.log('Dashboard data received:', data);
-    return data;
-  } catch (error) {
-    console.error('Error fetching dashboard data:', error);
-    throw error;
-  }
-},
-
-  repairStats: async () => {
-  try {
-    const response = await fetch(`${API_URL}/dashboard/repair-stats`, {
-      method: 'POST',
-      headers: createAuthHeaders()
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to repair stats');
-    }
-
-    return await response.json();
-  } catch (error) {
-    console.error('Error repairing stats:', error);
-    throw error;
-  }
-},
+  },
 
   getRecentActivity: async () => {
-  try {
-    console.log('Fetching recent activity...');
-    const response = await fetch(`${API_URL}/dashboard/activity/recent`, {
-      headers: createAuthHeaders()
-    });
+    try {
+      console.log('Fetching recent activity...');
+      const response = await fetch(`${API_URL}/dashboard/activity/recent`, {
+        headers: createAuthHeaders()
+      });
 
-    if (!response.ok) {
-      throw new Error(`Failed to fetch recent activity: ${response.status}`);
-    }
-
-    const data = await response.json();
-    console.log('Recent activity received:', data);
-    return data;
-  } catch (error) {
-    console.error('Error fetching recent activity:', error);
-    throw error;
-  }
-},
-
-   getUpcomingWorkouts: async () => {
-      try {
-        const response = await fetch(`${API_URL}/user-workouts/upcoming`, {
-          headers: createAuthHeaders()
-        });
-
-        if (!response.ok) {
-          throw new Error('Failed to fetch upcoming workouts');
-        }
-
-        return await response.json();
-      } catch (error) {
-        console.error('Error fetching upcoming workouts:', error);
-        throw error;
+      if (!response.ok) {
+        throw new Error(`Failed to fetch recent activity: ${response.status}`);
       }
-    },
+
+      const data = await response.json();
+      console.log('Recent activity received:', data);
+      return data;
+    } catch (error) {
+      console.error('Error fetching recent activity:', error);
+      throw error;
+    }
+  },
+
+  getUpcomingWorkouts: async () => {
+    try {
+      const response = await fetch(`${API_URL}/user-workouts/upcoming`, {
+        headers: createAuthHeaders()
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch upcoming workouts');
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching upcoming workouts:', error);
+      throw error;
+    }
+  },
 
   getPastWorkouts: async () => {
     try {
@@ -376,7 +363,7 @@ export const apiService = {
     }
   },
 
-  getUserWorkout: async (id) => {
+  getUserWorkout: async (id: string) => {
     try {
       const response = await fetch(`${API_URL}/user-workouts/${id}`, {
         headers: createAuthHeaders()
@@ -393,25 +380,68 @@ export const apiService = {
     }
   },
 
+  // Complete a workout with calorie tracking
+  completeWorkout: async (id: string, data: {
+    duration: number;
+    caloriesBurned?: number;
+    exerciseData?: any[];
+  }) => {
+    try {
+      console.log(`Completing workout ${id} with data:`, data);
 
-  // This function will be called when a user completes a workout
-  completeWorkout: async (workoutId, data = {}) => {
-  try {
-    const response = await fetch(`${API_URL}/workouts/${workoutId}/complete`, {
-      method: 'POST',
-      headers: createAuthHeaders(),
-      body: JSON.stringify(data)
-    });
+      const response = await fetch(`${API_URL}/workouts/${id}/complete`, {
+        method: 'POST',
+        headers: createAuthHeaders(),
+        body: JSON.stringify(data)
+      });
 
-    if (!response.ok) {
-      throw new Error('Failed to complete workout');
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`API error (${response.status}):`, errorText);
+        throw new Error(`Failed to complete workout: ${errorText}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error completing workout:', error);
+      throw error;
     }
+  },
 
-    return await response.json();
-  } catch (error) {
-    console.error('Error completing workout:', error);
-    throw error;
+  // User profile methods
+  getUserProfile: async () => {
+    try {
+      const response = await fetch(`${API_URL}/profile`, {
+        headers: createAuthHeaders()
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch user profile');
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching user profile:', error);
+      throw error;
+    }
+  },
+
+  updateUserProfile: async (profileData: any) => {
+    try {
+      const response = await fetch(`${API_URL}/profile`, {
+        method: 'PUT',
+        headers: createAuthHeaders(),
+        body: JSON.stringify(profileData)
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update user profile');
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error updating user profile:', error);
+      throw error;
+    }
   }
-}
-
 };

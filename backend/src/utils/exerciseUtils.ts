@@ -177,9 +177,9 @@ function extractLevel(query: string): string | null {
            query.includes('some experience')) {
     return 'intermediate';
   }
-  else if (query.includes('advanced') || query.includes('expert') ||
+  else if (query.includes('expert') || query.includes('expert') ||
            query.includes('hard') || query.includes('challenging')) {
-    return 'advanced';
+    return 'expert';
   }
 
   return null;

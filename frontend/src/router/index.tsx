@@ -11,6 +11,7 @@ import WorkoutSessionPage from '../pages/WorkoutSessionPage';
 import ExercisesPage from '../pages/ExercisesPage';
 import ExerciseDetailPage from '../pages/ExerciseDetailPage';
 import AICoachPage from '../pages/AICoachPage';
+import ProfilePage from '../pages/ProfilePage'; // Import ProfilePage
 import ErrorPage from '../pages/ErrorPage';
 import PrivateRoute from '../components/PrivateRoute';
 import { useAuth } from '../context/AuthContext';
@@ -51,6 +52,10 @@ const AppRouter = () => {
         {
           path: '/workout-session/:id',
           element: <PrivateRoute><WorkoutSessionPage /></PrivateRoute>,
+        },
+        {
+          path: '/profile', // Add ProfilePage route
+          element: <PrivateRoute><ProfilePage /></PrivateRoute>,
         },
         {
           path: '/exercises',

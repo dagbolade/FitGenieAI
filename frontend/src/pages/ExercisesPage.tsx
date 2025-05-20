@@ -218,7 +218,7 @@ const ExercisesPage: React.FC = () => {
               <option value="">All Levels</option>
               <option value="beginner">Beginner</option>
               <option value="intermediate">Intermediate</option>
-              <option value="advanced">Advanced</option>
+              <option value="expert">expert</option>
             </select>
           </div>
         </div>

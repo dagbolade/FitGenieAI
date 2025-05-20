@@ -12,6 +12,14 @@ const WorkoutSessionPage: React.FC = () => {
   const [timer, setTimer] = useState(0);
   const [isActive, setIsActive] = useState(false);
   const [currentExerciseIndex, setCurrentExerciseIndex] = useState(0);
+  const [userProfile, setUserProfile] = useState<any>(null);
+  const [estimatedCalories, setEstimatedCalories] = useState(0);
+  const [showCompletionSummary, setShowCompletionSummary] = useState(false);
+  const [completionStats, setCompletionStats] = useState({
+    duration: 0,
+    caloriesBurned: 0
+  });
+  const API_URL = 'http://localhost:4000/api';
 
   // Fetch workout data
   useEffect(() => {
@@ -33,13 +41,36 @@ const WorkoutSessionPage: React.FC = () => {
     }
   }, [id]);
 
-  // Timer functionality
+  // Load user profile
   useEffect(() => {
+    const loadUserProfile = async () => {
+      try {
+        const { profile } = await apiService.getUserProfile();
+        setUserProfile(profile);
+      } catch (error) {
+        console.error('Error loading user profile:', error);
+      }
+    };
+
+    loadUserProfile();
+  }, []);
+
+  // Timer functionality with calorie estimation
+  useEffect(() => {
+    // @ts-ignore
     let interval: NodeJS.Timeout | null = null;
 
     if (isActive) {
       interval = setInterval(() => {
-        setTimer((prevTimer) => prevTimer + 1);
+        setTimer((prevTimer) => {
+          const newTimer = prevTimer + 1;
+          // Update calories estimation every minute
+          if (newTimer % 60 === 0) {
+            const durationMinutes = newTimer / 60;
+            estimateCalories(durationMinutes);
+          }
+          return newTimer;
+        });
       }, 1000);
     } else if (interval) {
       clearInterval(interval);
@@ -48,7 +79,7 @@ const WorkoutSessionPage: React.FC = () => {
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [isActive]);
+  }, [isActive, workout, userProfile]);
 
   // Format time as MM:SS
   const formatTime = (time: number) => {
@@ -66,6 +97,7 @@ const WorkoutSessionPage: React.FC = () => {
   const resetTimer = () => {
     setTimer(0);
     setIsActive(false);
+    setEstimatedCalories(0);
   };
 
   // Next exercise
@@ -82,35 +114,90 @@ const WorkoutSessionPage: React.FC = () => {
     }
   };
 
-  const API_URL = 'http://localhost:4000/api';
-
-
-  const completeWorkout = async () => {
-  try {
-    console.log(`Completing workout ${id} with duration ${timer}`);
-
-    // Make the API call directly instead of using apiService
-    const response = await fetch(`${API_URL}/workouts/${id}/complete`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${localStorage.getItem('token')}`
-      },
-      body: JSON.stringify({ duration: timer })
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`API error (${response.status}):`, errorText);
-      throw new Error(`API error: ${response.status} ${errorText}`);
+  // Estimate calories based on duration, workout type, and user profile
+  const estimateCalories = (durationMinutes: number) => {
+    if (!workout || !userProfile?.weight) {
+      return 0; // Can't calculate without workout and weight
     }
 
-    const result = await response.json();
-    console.log('API success:', result);
+    // Ensure duration is at least 1 minute
+    durationMinutes = Math.max(1, durationMinutes);
 
-    alert("Workout completed successfully!");
-    navigate('/workouts');
-  } catch (error) {
+    if (durationMinutes <= 0 || !workout || !userProfile?.weight) {
+    return 0;
+  }
+
+    // Determine intensity based on workout level
+    const intensity = workout.level === 'beginner' ? 'beginner' :
+                      workout.level === 'intermediate' ? 'intermediate' : 'advanced';
+
+    // Base MET values by intensity and workout type
+    const metValues: Record<string, Record<string, number>> = {
+      'strength': { 'beginner': 3.0, 'intermediate': 4.5, 'advanced': 6.0 },
+      'cardio': { 'beginner': 4.0, 'intermediate': 7.0, 'advanced': 10.0 },
+      'mixed': { 'beginner': 3.5, 'intermediate': 5.5, 'advanced': 8.0 },
+      'general fitness': { 'beginner': 3.5, 'intermediate': 5.0, 'advanced': 6.5 }
+    };
+
+    // Get workout type or default to general fitness
+    const workoutType = metValues[workout.goal] ? workout.goal : 'general fitness';
+
+    // Calculate base MET
+    const baseMet = metValues[workoutType][intensity];
+
+    // Add bonus for more exercises (more varied workout)
+    const exerciseBonus = Math.min(1.0, workout.exercises.length * 0.05);
+
+    // Age adjustment
+    let ageAdjustment = 1.0;
+    if (userProfile.age) {
+      if (userProfile.age > 50) ageAdjustment = 0.9;
+      else if (userProfile.age > 40) ageAdjustment = 0.95;
+    }
+
+    // Gender adjustment
+    let genderAdjustment = 1.0;
+    if (userProfile.gender === 'female') genderAdjustment = 0.9;
+
+    // Apply all adjustments
+    const adjustedMet = baseMet * (1 + exerciseBonus) * ageAdjustment * genderAdjustment;
+
+    // Calculate calories: MET * Weight (kg) * Duration (hours)
+    const durationHours = durationMinutes / 60;
+    const calories = adjustedMet * userProfile.weight * durationHours;
+
+    // Update state with rounded value
+    const estimatedCals = Math.round(calories);
+    setEstimatedCalories(estimatedCals);
+
+    return estimatedCals;
+  };
+
+  // Complete workout with calories data
+  const completeWorkout = async () => {
+  try {
+    // Calculate duration in minutes, ensuring a minimum of 1 minute
+    // if timer is active but less than 60 seconds
+    const durationMinutes = Math.max(1, Math.ceil(timer / 60));
+
+    // If timer is 0, set calories to 0 as well
+    const caloriesBurned = timer === 0 ? 0 : estimateCalories(durationMinutes);
+
+    console.log(`Completing workout ${id} with duration: ${durationMinutes} minutes, calories: ${caloriesBurned}`);
+
+    // Use apiService to complete the workout
+    const result = await apiService.completeWorkout(id as string, {
+      duration: durationMinutes,
+      caloriesBurned: caloriesBurned
+    });
+
+    // Show completion summary
+    setCompletionStats({
+      duration: durationMinutes,
+      caloriesBurned: result.caloriesBurned || caloriesBurned
+    });
+    setShowCompletionSummary(true);
+  } catch (error: any) {
     console.error('Error completing workout:', error);
     alert(`Failed to complete workout: ${error.message}`);
   }
@@ -157,6 +244,27 @@ const WorkoutSessionPage: React.FC = () => {
           {/* Timer control */}
           <div className="bg-gray-100 p-4 rounded-lg mb-6 text-center">
             <div className="text-3xl font-bold mb-4">{formatTime(timer)}</div>
+
+            {/* Calories display */}
+            {!userProfile?.weight ? (
+              <div className="text-center bg-blue-50 p-4 rounded-lg mb-4">
+                <p className="text-gray-700 mb-2">
+                  To see calorie estimates, add your weight to your profile
+                </p>
+                <Link
+                  to="/profile"
+                  className="bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded-lg inline-block"
+                >
+                  Complete Profile
+                </Link>
+              </div>
+            ) : (
+              <div className="text-center mb-4">
+                <span className="text-gray-600">Estimated calories: </span>
+                <span className="font-bold text-orange-500 text-xl">{estimatedCalories}</span>
+              </div>
+            )}
+
             <div className="flex justify-center space-x-4">
               <button
                 onClick={toggleTimer}
@@ -290,6 +398,47 @@ const WorkoutSessionPage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Workout Completion Summary Modal */}
+      {showCompletionSummary && (
+        <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-8 max-w-md w-full">
+            <h2 className="text-2xl font-bold text-center mb-6">Workout Complete!</h2>
+
+            <div className="grid grid-cols-2 gap-6 mb-8">
+              <div className="text-center">
+                <div className="text-5xl font-bold text-blue-600 mb-2">{completionStats.duration}</div>
+                <div className="text-gray-600">Minutes</div>
+              </div>
+              <div className="text-center">
+                <div className="text-5xl font-bold text-orange-500 mb-2">{completionStats.caloriesBurned}</div>
+                <div className="text-gray-600">Calories</div>
+              </div>
+            </div>
+
+            <div className="text-center">
+              <p className="text-green-600 font-medium mb-6">
+                Great job! You've completed your workout.
+              </p>
+
+              <div className="flex justify-center space-x-4">
+                <button
+                  onClick={() => navigate('/workouts')}
+                  className="px-6 py-2 bg-blue-600 text-white rounded-lg"
+                >
+                  Back to Workouts
+                </button>
+                <button
+                  onClick={() => navigate('/dashboard')}
+                  className="px-6 py-2 bg-green-600 text-white rounded-lg"
+                >
+                  View Dashboard
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

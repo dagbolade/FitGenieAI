@@ -17,7 +17,7 @@ export interface IExercise extends Document {
 const ExerciseSchema = new Schema<IExercise>({
   name: { type: String, required: true },
   force: { type: String },
-  level: { type: String, enum: ['beginner', 'intermediate', 'advanced'] },
+  level: { type: String, enum: ['beginner', 'intermediate', 'expert'] },
   mechanic: { type: String, enum: ['compound', 'isolation', ''] },
   equipment: { type: String, required: true },
   primaryMuscles: { type: [String], required: true },

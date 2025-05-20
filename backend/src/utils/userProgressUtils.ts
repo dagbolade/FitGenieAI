@@ -28,7 +28,8 @@ export const recordUserActivity = async (
 export const updateUserProgressForCompletedWorkout = async (
   userId: string,
   duration: number,
-  exercises: any[]
+  exercises: any[],
+  caloriesBurned: number = 0 // Add calories parameter with default value
 ): Promise<void> => {
   try {
     // Find or create user progress
@@ -40,7 +41,8 @@ export const updateUserProgressForCompletedWorkout = async (
         workoutStats: {
           totalWorkouts: 0,
           completedWorkouts: 0,
-          totalDuration: 0
+          totalDuration: 0,
+          totalCaloriesBurned: 0 // Initialize calories burned
         },
         exerciseStats: {
           totalExercises: 0,
@@ -54,6 +56,13 @@ export const updateUserProgressForCompletedWorkout = async (
     // Update workout stats
     userProgress.workoutStats.completedWorkouts += 1;
     userProgress.workoutStats.totalDuration += duration;
+
+    // Add calories burned to total
+    if (!userProgress.workoutStats.totalCaloriesBurned) {
+      userProgress.workoutStats.totalCaloriesBurned = 0;
+    }
+    userProgress.workoutStats.totalCaloriesBurned += caloriesBurned;
+
     userProgress.workoutStats.lastWorkoutDate = new Date();
 
     // Add to weekly activity
@@ -75,9 +84,19 @@ export const updateUserProgressForCompletedWorkout = async (
     if (todayIndex >= 0) {
       // Update existing entry
       userProgress.weeklyActivity[todayIndex].duration += duration;
+
+      // Add calories to today's activity
+      if (!userProgress.weeklyActivity[todayIndex].calories) {
+        userProgress.weeklyActivity[todayIndex].calories = 0;
+      }
+      userProgress.weeklyActivity[todayIndex].calories += caloriesBurned;
     } else {
-      // Add new entry
-      userProgress.weeklyActivity.push({ date: today, duration });
+      // Add new entry with calories
+      userProgress.weeklyActivity.push({
+        date: today,
+        duration,
+        calories: caloriesBurned
+      });
     }
 
     // Update exercise stats
@@ -163,7 +182,8 @@ export const updateUserProgressForCreatedWorkout = async (
         workoutStats: {
           totalWorkouts: 0,
           completedWorkouts: 0,
-          totalDuration: 0
+          totalDuration: 0,
+          totalCaloriesBurned: 0 // Initialize calories burned
         },
         exerciseStats: {
           totalExercises: 0,

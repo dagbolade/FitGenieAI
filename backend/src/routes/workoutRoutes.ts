@@ -43,7 +43,7 @@ router.post('/:id/exercises', addExercisesToWorkout);
 router.post('/:id/complete', completeWorkout);
 
 // DELETE a workout
-router.delete('/:id', deleteWorkout);
+router.delete('/:id', authenticateUser, deleteWorkout);
 
 
 

@@ -6,10 +6,37 @@ import UserWorkout from '../models/UserWorkout';
 import UserActivity from '../models/UserActivity';
 import Workout from "../models/Workout";
 
+// Define interfaces for better type safety
+interface WeeklyActivity {
+  date: Date;
+  duration: number;
+  calories?: number; // Make calories optional for backward compatibility
+}
+
+interface FormattedActivity {
+  day: string;
+  minutes: number;
+  calories: number;
+}
+
+interface MuscleGroup {
+  name: string;
+  count: number;
+}
+
+interface FormattedMuscleGroup {
+  name: string;
+  percentage: number;
+}
+
 // Format weekly activity for the dashboard
-function formatWeeklyActivity(activityData: any[]): { day: string; minutes: number }[] {
+function formatWeeklyActivity(activityData: WeeklyActivity[]): FormattedActivity[] {
   const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-  const weeklyData = daysOfWeek.map(day => ({ day, minutes: 0 }));
+  const weeklyData: FormattedActivity[] = daysOfWeek.map(day => ({
+    day,
+    minutes: 0,
+    calories: 0
+  }));
 
   if (!activityData || activityData.length === 0) {
     console.log('No weekly activity data found');
@@ -26,18 +53,33 @@ function formatWeeklyActivity(activityData: any[]): { day: string; minutes: numb
       // Handle string dates or Date objects
       if (typeof activity.date === 'string') {
         activityDate = new Date(activity.date);
-      } else {
+      } else if (activity.date instanceof Date) {
         activityDate = activity.date;
+      } else {
+        console.error('Invalid date format:', activity.date);
+        continue; // Skip this activity if date is invalid
+      }
+
+      if (isNaN(activityDate.getTime())) {
+        console.error('Invalid date value:', activity.date);
+        continue; // Skip if date is invalid
       }
 
       const dayOfWeek = activityDate.getDay(); // 0 = Sunday, 1 = Monday, etc.
 
-      // Add the duration to the appropriate day
-      weeklyData[dayOfWeek].minutes += activity.duration;
+      // Add the duration to the appropriate day - ensure it's a number
+      const duration = typeof activity.duration === 'number' ? activity.duration : 0;
+      weeklyData[dayOfWeek].minutes += duration;
 
-      console.log(`Added ${activity.duration} minutes to ${daysOfWeek[dayOfWeek]}`);
-    } catch (error) {
-      console.error('Error processing activity date:', error);
+      // Add calories if available - ensure it's a number
+      if (typeof activity.calories === 'number') {
+        weeklyData[dayOfWeek].calories += activity.calories;
+        console.log(`Added ${activity.calories} calories to ${daysOfWeek[dayOfWeek]}`);
+      }
+
+      console.log(`Added ${duration} minutes to ${daysOfWeek[dayOfWeek]}`);
+    } catch (error: any) {
+      console.error('Error processing activity date:', error.message);
     }
   }
 
@@ -45,8 +87,7 @@ function formatWeeklyActivity(activityData: any[]): { day: string; minutes: numb
 }
 
 // Calculate muscle group percentages for the dashboard
-// Calculate muscle group percentages
-function calculateMuscleGroupPercentages(muscleGroups: any[]): { name: string; percentage: number }[] {
+function calculateMuscleGroupPercentages(muscleGroups: MuscleGroup[]): FormattedMuscleGroup[] {
   if (!muscleGroups || muscleGroups.length === 0) {
     return [];
   }
@@ -94,6 +135,27 @@ export const getDashboardData = async (req: Request, res: Response): Promise<voi
     let userProgress = await UserProgress.findOne({ userId });
     let wasCreated = false;
 
+    // Calculate total calories burned from completed workouts
+    const caloriesResults = await UserWorkout.aggregate([
+      {
+        $match: {
+          userId: new mongoose.Types.ObjectId(userId),
+          completed: true
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          totalCalories: { $sum: "$caloriesBurned" }
+        }
+      }
+    ]);
+
+    const totalCaloriesBurned = caloriesResults.length > 0 ?
+      (caloriesResults[0].totalCalories || 0) : 0;
+
+    console.log(`Total calories burned from workouts: ${totalCaloriesBurned}`);
+
     if (!userProgress) {
       console.log("No UserProgress found, creating new record");
       userProgress = new UserProgress({
@@ -102,6 +164,7 @@ export const getDashboardData = async (req: Request, res: Response): Promise<voi
           totalWorkouts: totalWorkoutsCount,
           completedWorkouts: completedWorkoutsCount,
           totalDuration: 0,
+          totalCaloriesBurned: totalCaloriesBurned,
           lastWorkoutDate: null
         },
         exerciseStats: {
@@ -118,6 +181,13 @@ export const getDashboardData = async (req: Request, res: Response): Promise<voi
         console.log(`Fixing completedWorkouts count: ${userProgress.workoutStats.completedWorkouts} -> ${completedWorkoutsCount}`);
         userProgress.workoutStats.completedWorkouts = completedWorkoutsCount;
       }
+
+      // Update calories burned if needed
+      const currentCalories = userProgress.workoutStats.totalCaloriesBurned || 0;
+      if (currentCalories !== totalCaloriesBurned) {
+        console.log(`Updating totalCaloriesBurned: ${currentCalories} -> ${totalCaloriesBurned}`);
+        userProgress.workoutStats.totalCaloriesBurned = totalCaloriesBurned;
+      }
     }
 
     // If we created a new record or needed to fix numbers, save it
@@ -127,13 +197,13 @@ export const getDashboardData = async (req: Request, res: Response): Promise<voi
     }
 
     // Process weekly activity
-    const today = new Date();
     const weeklyActivityData = userProgress.weeklyActivity || [];
-    const weeklyActivity = formatWeeklyActivity(weeklyActivityData);
+    const weeklyActivity = formatWeeklyActivity(weeklyActivityData as WeeklyActivity[]);
 
     console.log(`Processing ${weeklyActivityData.length} weekly activity records`);
     weeklyActivityData.forEach(activity => {
-      console.log(`Activity: ${new Date(activity.date).toISOString()}, Duration: ${activity.duration}`);
+      const activityDate = activity.date ? new Date(activity.date).toISOString() : 'unknown date';
+      console.log(`Activity: ${activityDate}, Duration: ${activity.duration}, Calories: ${activity.calories || 0}`);
     });
 
     // Calculate muscle group percentages
@@ -145,6 +215,7 @@ export const getDashboardData = async (req: Request, res: Response): Promise<voi
         totalWorkouts: totalWorkoutsCount,
         completedWorkouts: completedWorkoutsCount,
         totalExercises: userProgress.exerciseStats.totalExercises || 0,
+        totalCaloriesBurned: totalCaloriesBurned, // Add calories to response
         favoriteExercises: (userProgress.exerciseStats.favoriteExercises || []).slice(0, 5),
         weeklyActivity: weeklyActivity,
         muscleGroups: muscleGroups
@@ -153,12 +224,11 @@ export const getDashboardData = async (req: Request, res: Response): Promise<voi
 
     console.log('Returning dashboard data:', JSON.stringify(response));
     res.status(200).json(response);
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error fetching dashboard data:', error);
-    res.status(500).json({ message: 'Error fetching dashboard data', error });
+    res.status(500).json({ message: 'Error fetching dashboard data', error: error.message });
   }
 };
-
 
 // Get upcoming workouts for the authenticated user
 export const getUpcomingWorkouts = async (req: Request, res: Response): Promise<void> => {
@@ -191,9 +261,9 @@ export const getUpcomingWorkouts = async (req: Request, res: Response): Promise<
     }));
 
     res.status(200).json(formattedWorkouts);
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error fetching upcoming workouts:', error);
-    res.status(500).json({ message: 'Error fetching upcoming workouts', error });
+    res.status(500).json({ message: 'Error fetching upcoming workouts', error: error.message });
   }
 };
 
@@ -223,8 +293,101 @@ export const getRecentActivity = async (req: Request, res: Response): Promise<vo
     }));
 
     res.status(200).json(recentActivity);
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error fetching recent activity:', error);
-    res.status(500).json({ message: 'Error fetching recent activity', error });
+    res.status(500).json({ message: 'Error fetching recent activity', error: error.message });
+  }
+};
+
+// Add an endpoint to repair user progress stats if needed
+export const repairUserStats = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = req.user?.id;
+
+    if (!userId) {
+      res.status(401).json({ message: 'Unauthorized' });
+      return;
+    }
+
+    // Get accurate counts directly from database
+    const totalWorkoutsCount = await Workout.countDocuments({
+      createdBy: new mongoose.Types.ObjectId(userId)
+    });
+
+    const completedWorkoutsCount = await UserWorkout.countDocuments({
+      userId: new mongoose.Types.ObjectId(userId),
+      completed: true
+    });
+
+    // Calculate total duration and calories from all completed workouts
+    const workoutStats = await UserWorkout.aggregate([
+      {
+        $match: {
+          userId: new mongoose.Types.ObjectId(userId),
+          completed: true
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          totalDuration: { $sum: "$duration" },
+          totalCalories: { $sum: "$caloriesBurned" }
+        }
+      }
+    ]);
+
+    const totalDuration = workoutStats.length > 0 ? workoutStats[0].totalDuration : 0;
+    const totalCaloriesBurned = workoutStats.length > 0 ? workoutStats[0].totalCalories : 0;
+
+    // Get the latest workout date
+    const latestWorkout = await UserWorkout.findOne({
+      userId: new mongoose.Types.ObjectId(userId),
+      completed: true
+    }).sort({ completedAt: -1 });
+
+    // Find or create user progress
+    let userProgress = await UserProgress.findOne({ userId });
+
+    if (!userProgress) {
+      userProgress = new UserProgress({
+        userId: new mongoose.Types.ObjectId(userId),
+        workoutStats: {
+          totalWorkouts: totalWorkoutsCount,
+          completedWorkouts: completedWorkoutsCount,
+          totalDuration: totalDuration,
+          totalCaloriesBurned: totalCaloriesBurned,
+          lastWorkoutDate: latestWorkout?.completedAt || null // Use optional chaining
+        },
+        exerciseStats: {
+          totalExercises: 0,
+          favoriteExercises: [],
+          muscleGroups: []
+        },
+        weeklyActivity: []
+      });
+    } else {
+      // Update with accurate counts
+      userProgress.workoutStats.totalWorkouts = totalWorkoutsCount;
+      userProgress.workoutStats.completedWorkouts = completedWorkoutsCount;
+      userProgress.workoutStats.totalDuration = totalDuration;
+      userProgress.workoutStats.totalCaloriesBurned = totalCaloriesBurned;
+
+      // Safely assign completedAt date if it exists
+      if (latestWorkout && latestWorkout.completedAt) {
+        userProgress.workoutStats.lastWorkoutDate = latestWorkout.completedAt;
+      }
+    }
+
+    // Save the updated progress
+    await userProgress.save();
+
+    res.status(200).json({
+      message: 'User stats repaired successfully',
+      stats: userProgress.workoutStats
+    });
+
+  } catch (error: any) {
+    console.error('Error repairing user stats:', error);
+    res.status(500).json({ message: 'Error repairing user stats', error: error.message });
   }
 };

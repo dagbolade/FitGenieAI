@@ -20,7 +20,7 @@ export async function generateAIResponse(query: string, relevantExercises: any[]
     ).join('\n\n');
 
     // Create the prompt
-    const prompt = `You are FitGenieAI, an advanced fitness assistant powered by expert-level knowledge in exercise science, nutrition, and training optimization. 
+    const prompt = `You are FitGenieAI, an expert fitness assistant powered by expert-level knowledge in exercise science, nutrition, and training optimization. 
     Your goal is to provide clear, structured, and highly targeted responses to user queries, avoiding repetition and focusing on actionable advice.
     
    When responding:
@@ -211,7 +211,7 @@ function generateRuleBasedResponse(query: string, exercises: any[]) {
     }
 
     if (queryLower.includes('how often') || queryLower.includes('how many days')) {
-      return `The ideal training frequency depends on your goals and recovery capacity. For general fitness, 3-5 days per week is typically recommended. If you're a beginner, start with 2-3 full-body workouts per week. For more advanced trainees, a split routine might work better, training each muscle group 2-3 times per week. Always ensure you're getting adequate rest between sessions targeting the same muscle groups (typically 48-72 hours).`;
+      return `The ideal training frequency depends on your goals and recovery capacity. For general fitness, 3-5 days per week is typically recommended. If you're a beginner, start with 2-3 full-body workouts per week. For more expert trainees, a split routine might work better, training each muscle group 2-3 times per week. Always ensure you're getting adequate rest between sessions targeting the same muscle groups (typically 48-72 hours).`;
     }
 
     if (queryLower.includes('diet') || queryLower.includes('nutrition') || queryLower.includes('eat')) {

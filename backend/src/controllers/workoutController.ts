@@ -3,6 +3,7 @@ import { Request, Response } from 'express';
 import mongoose from 'mongoose';
 import Workout from '../models/Workout';
 import Exercise from '../models/Exercise';
+import { calculateCaloriesBurned } from '../utils/calorieCalculator';
 import {
   recordUserActivity,
   updateUserProgressForCompletedWorkout,
@@ -10,6 +11,7 @@ import {
 } from '../utils/userProgressUtils';
 import UserWorkout from "../models/UserWorkout";
 import UserProgress from "../models/UserProgress";
+import UserProfile from "../models/UserProfile";
 
 // Get workouts for the current user
 export const getWorkouts = async (req: Request, res: Response): Promise<void> => {
@@ -80,99 +82,110 @@ export const addExercisesToWorkout = async (req: Request, res: Response): Promis
   }
 };
 
-// In workoutController.ts
+
 export const completeWorkout = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const { duration } = req.body;
+    let { duration, caloriesBurned } = req.body;
     const userId = req.user?.id;
 
-    console.log(`Controller: Completing workout ${id} for user ${userId} with duration ${duration}`);
+    console.log(`Completing workout ${id} with duration: ${duration}, calories: ${caloriesBurned}`);
 
-    // Check if this ID is for a Workout or a UserWorkout
-    let workout = await Workout.findById(id);
-    let userWorkout = null;
+    // Find the workout
+    const workout = await Workout.findById(id);
 
     if (!workout) {
-      // If not a regular workout, check if it's a UserWorkout
-      userWorkout = await UserWorkout.findById(id);
+      res.status(404).json({ message: 'Workout not found' });
+      return;
+    }
 
-      if (!userWorkout) {
-        console.log(`Neither Workout nor UserWorkout found with ID: ${id}`);
-        res.status(404).json({ message: 'Workout not found' });
-        return;
-      }
+    if (duration <= 0) {
+      console.warn(`Invalid duration (${duration}) provided for workout ${id}. Setting to 1 minute.`);
+      duration = 1; // Set to minimum valid duration
+    }
 
-      // Use the UserWorkout's linked workout
-      workout = await Workout.findById(userWorkout.workoutId);
+    // If calories are provided but invalid, reset to 0
+    if (caloriesBurned !== undefined && (caloriesBurned < 0 || !Number.isFinite(caloriesBurned))) {
+      console.warn(`Invalid calories (${caloriesBurned}) provided for workout ${id}. Setting to 0.`);
+      caloriesBurned = 0;
+    }
 
-      if (!workout) {
-        console.log(`UserWorkout found but linked Workout ${userWorkout.workoutId} not found`);
-        res.status(404).json({ message: 'Original workout template not found' });
-        return;
+    // Use the provided calories or calculate if not provided
+    let finalCalories = caloriesBurned;
+    if (!finalCalories) {
+      const userProfile = await UserProfile.findOne({ userId });
+
+      if (userProfile?.weight) {
+        finalCalories = calculateCaloriesBurned({
+          duration: duration || workout.duration,
+          exerciseCount: workout.exercises.length,
+          intensityLevel: workout.level,
+          exerciseType: workout.goal,
+          weight: userProfile.weight,
+          age: userProfile.age,
+          gender: userProfile.gender
+        });
+      } else {
+        finalCalories = 0;
       }
     }
 
-    console.log(`Found workout: ${workout.name}`);
+    console.log(`Final calories calculation: ${finalCalories}`);
 
-    // If we have a UserWorkout already, just mark it completed
-    if (userWorkout) {
-      userWorkout.completed = true;
-      userWorkout.completedAt = new Date();
-      await userWorkout.save();
-
-      console.log(`Updated existing UserWorkout: ${userWorkout._id}`);
-    } else {
-      // Create a new UserWorkout from the template
-      userWorkout = new UserWorkout({
-        userId: new mongoose.Types.ObjectId(userId),
-        workoutId: new mongoose.Types.ObjectId(id),
-        name: workout.name,
-        description: workout.description,
-        scheduled: new Date(),
-        completed: true,
-        completedAt: new Date(),
-        duration: duration || workout.duration,
-        exercises: workout.exercises.map(ex => ({
-          exerciseId: new mongoose.Types.ObjectId(ex.id),
-          name: ex.name,
-          sets: Array(ex.sets).fill(null).map(() => ({
-            reps: parseInt(ex.reps.split('-')[0]),
-            weight: 0,
-            completed: true
-          }))
+    // Create user workout
+    const userWorkout = new UserWorkout({
+      userId: new mongoose.Types.ObjectId(userId),
+      workoutId: new mongoose.Types.ObjectId(id),
+      name: workout.name,
+      description: workout.description,
+      scheduled: new Date(),
+      completed: true,
+      completedAt: new Date(),
+      duration: duration || workout.duration,
+      caloriesBurned: finalCalories,
+      exercises: workout.exercises.map(ex => ({
+        exerciseId: ex.id ? new mongoose.Types.ObjectId(ex.id) : null,
+        name: ex.name,
+        sets: Array(ex.sets).fill(null).map(() => ({
+          reps: parseInt(ex.reps.split('-')[0]),
+          weight: 0,
+          completed: true
         }))
-      });
+      }))
+    });
 
-      const savedUserWorkout = await userWorkout.save();
-      console.log(`Created new UserWorkout: ${savedUserWorkout._id}`);
-    }
+    // Save the user workout
+    const savedWorkout = await userWorkout.save();
 
-    // Update user progress
+    console.log('Updating user progress with calories:', finalCalories);
+
+    // Call updateUserProgressForCompletedWorkout with workout data including calories
     await updateUserProgressForCompletedWorkout(
       userId as string,
       duration || workout.duration,
-      workout.exercises
+      workout.exercises,
+      finalCalories // Pass the calories here
     );
 
-    // Record activity
+    // Record user activity
     await recordUserActivity(
       userId as string,
       'completed_workout',
-      `Completed workout: ${workout.name}`,
-        (userWorkout._id as string).toString()
+      `Completed workout: ${workout.name} (${finalCalories} calories)`,
+        (savedWorkout._id as string).toString()
     );
 
     res.status(200).json({
       message: 'Workout completed successfully',
-      workout: userWorkout
+      workout: savedWorkout,
+      caloriesBurned: finalCalories
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error completing workout:', error);
-    // @ts-ignore
     res.status(500).json({ message: 'Error completing workout', error: error.message });
   }
 };
+
 // Get a specific workout by ID
 export const getWorkoutById = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -424,35 +437,51 @@ export const updateWorkout = async (req: Request, res: Response): Promise<void> 
 export const deleteWorkout = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
+    const userId = req.user?.id;
 
-    // Find the workout
+    console.log(`Attempting to delete workout ${id} for user ${userId}`);
+
+    // Find the workout first to check ownership
     const workout = await Workout.findById(id);
 
     if (!workout) {
+      console.log(`Workout ${id} not found`);
       res.status(404).json({ message: 'Workout not found' });
       return;
     }
 
     // Check if the workout belongs to the current user
-    if (workout.createdBy && workout.createdBy.toString() !== req.user?.id) {
+    if (workout.createdBy && workout.createdBy.toString() !== userId) {
+      console.log(`User ${userId} does not own workout ${id}`);
       res.status(403).json({ message: 'You do not have permission to delete this workout' });
       return;
     }
 
-    // Delete the workout
-    await Workout.findByIdAndDelete(id);
+    // Perform the delete operation
+    const result = await Workout.findByIdAndDelete(id);
+    console.log(`Workout ${id} deleted successfully:`, result ? 'Yes' : 'No');
 
-    // Record activity
-    await recordUserActivity(
-      req.user?.id as string,
-      'workout',
-      `Deleted workout: ${workout.name}`,
-      id
-    );
+    if (!result) {
+      res.status(500).json({ message: 'Failed to delete workout' });
+      return;
+    }
+
+    // Delete any associated user workouts if they exist
+    try {
+      const userWorkouts = await UserWorkout.deleteMany({
+        workoutId: new mongoose.Types.ObjectId(id),
+        userId: new mongoose.Types.ObjectId(userId)
+      });
+      console.log(`Deleted ${userWorkouts.deletedCount} associated user workouts`);
+    } catch (error) {
+      console.error('Error deleting associated user workouts:', error);
+      // Continue even if this fails
+    }
 
     res.status(200).json({ message: 'Workout deleted successfully' });
   } catch (error) {
     console.error('Error deleting workout:', error);
-    res.status(500).json({ message: 'Error deleting workout', error });
+    // @ts-ignore
+    res.status(500).json({ message: 'Error deleting workout', error: error.message });
   }
 };

@@ -12,6 +12,7 @@ import exerciseRoutes from './routes/exerciseRoutes';
 import dashboardRoutes from './routes/dashboardRoutes';
 import { authenticateUser } from './middleware/authMiddleware';
 import aiCoachRoutes from "./routes/aiCoachRoutes";
+import profileRoutes from './routes/profileRoutes';
 
 // Initialize environment variables
 dotenv.config();
@@ -22,7 +23,7 @@ const PORT = process.env.PORT || 4000;
 
 // Middleware
 app.use(cors({
-  origin: 'http://localhost:5173', // Your frontend URL
+  origin: process.env.FRONTEND_URL || '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
@@ -37,6 +38,7 @@ app.use('/api/workouts', authenticateUser, workoutRoutes);
 app.use('/api/user-workouts', authenticateUser, userWorkoutRoutes);
 app.use('/api/dashboard', authenticateUser, dashboardRoutes);
 app.use('/api/ai-coach', authenticateUser, aiCoachRoutes); // AI Coach routes
+app.use('/api/profile', authenticateUser, profileRoutes);
 
 
 // Health check endpoint

@@ -7,6 +7,7 @@ export interface IUserProgress extends Document {
     totalWorkouts: number;
     completedWorkouts: number;
     totalDuration: number; // in minutes
+    totalCaloriesBurned: number; // Add this field to the interface
     lastWorkoutDate: Date;
   };
   exerciseStats: {
@@ -23,6 +24,7 @@ export interface IUserProgress extends Document {
   weeklyActivity: Array<{
     date: Date;
     duration: number; // in minutes
+    calories: number; // Add this field to the interface
   }>;
   createdAt: Date;
   updatedAt: Date;
@@ -34,6 +36,7 @@ const UserProgressSchema = new Schema<IUserProgress>({
     totalWorkouts: { type: Number, default: 0 },
     completedWorkouts: { type: Number, default: 0 },
     totalDuration: { type: Number, default: 0 },
+    totalCaloriesBurned: { type: Number, default: 0 },
     lastWorkoutDate: { type: Date }
   },
   exerciseStats: {
@@ -49,7 +52,8 @@ const UserProgressSchema = new Schema<IUserProgress>({
   },
   weeklyActivity: [{
     date: { type: Date, required: true },
-    duration: { type: Number, required: true }
+    duration: { type: Number, required: true },
+    calories: { type: Number, default: 0 } // Add this field to the schema
   }]
 }, { timestamps: true });
 
