@@ -304,6 +304,24 @@ export const apiService = {
   }
 },
 
+  repairStats: async () => {
+  try {
+    const response = await fetch(`${API_URL}/dashboard/repair-stats`, {
+      method: 'POST',
+      headers: createAuthHeaders()
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to repair stats');
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Error repairing stats:', error);
+    throw error;
+  }
+},
+
   getRecentActivity: async () => {
   try {
     console.log('Fetching recent activity...');
@@ -377,25 +395,23 @@ export const apiService = {
 
 
   // This function will be called when a user completes a workout
-  completeWorkout: async (workoutId: string, completionData: any) => {
-    try {
-      const response = await fetch(`${API_URL}/workouts/${workoutId}/complete`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(completionData),
-      });
+  completeWorkout: async (workoutId, data = {}) => {
+  try {
+    const response = await fetch(`${API_URL}/workouts/${workoutId}/complete`, {
+      method: 'POST',
+      headers: createAuthHeaders(),
+      body: JSON.stringify(data)
+    });
 
-      if (!response.ok) {
-        throw new Error('Failed to mark workout as completed');
-      }
-
-      return await response.json();
-    } catch (error) {
-      console.error('Error completing workout:', error);
-      throw error;
+    if (!response.ok) {
+      throw new Error('Failed to complete workout');
     }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Error completing workout:', error);
+    throw error;
   }
+}
 
 };

@@ -1,6 +1,6 @@
 // frontend/src/pages/WorkoutDetailPage.tsx
 import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { apiService } from '../services/api';
 
 interface Exercise {
@@ -34,6 +34,7 @@ const WorkoutDetailPage: React.FC = () => {
   const [workout, setWorkout] = useState<Workout | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const fetchWorkoutDetail = async () => {
@@ -57,9 +58,9 @@ const WorkoutDetailPage: React.FC = () => {
   }, [id]);
 
   const handleStartWorkout = () => {
-    alert(`Starting workout: ${workout?.name}`);
-    // In a real app, this would navigate to a workout session page
-    // or start a timer and tracking mechanism
+    console.log(`Starting workout session for: ${workout?.name} (ID: ${id})`);
+    // Navigate to the workout session page
+    navigate(`/workout-session/${id}`);
   };
 
   const formatMusclesList = (muscles: string[] | string | undefined) => {

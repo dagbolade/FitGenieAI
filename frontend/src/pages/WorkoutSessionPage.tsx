@@ -82,13 +82,39 @@ const WorkoutSessionPage: React.FC = () => {
     }
   };
 
-  // Mark workout as completed (placeholder)
-  const completeWorkout = () => {
-    // Here you would call an API to mark the workout as completed
-    // For now we'll just navigate back and show an alert
-    alert("Workout completed! In a real app, this would be saved to your progress.");
+  const API_URL = 'http://localhost:4000/api';
+
+
+  const completeWorkout = async () => {
+  try {
+    console.log(`Completing workout ${id} with duration ${timer}`);
+
+    // Make the API call directly instead of using apiService
+    const response = await fetch(`${API_URL}/workouts/${id}/complete`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('token')}`
+      },
+      body: JSON.stringify({ duration: timer })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`API error (${response.status}):`, errorText);
+      throw new Error(`API error: ${response.status} ${errorText}`);
+    }
+
+    const result = await response.json();
+    console.log('API success:', result);
+
+    alert("Workout completed successfully!");
     navigate('/workouts');
-  };
+  } catch (error) {
+    console.error('Error completing workout:', error);
+    alert(`Failed to complete workout: ${error.message}`);
+  }
+};
 
   if (loading) {
     return (

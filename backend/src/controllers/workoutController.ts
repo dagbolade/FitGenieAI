@@ -80,101 +80,97 @@ export const addExercisesToWorkout = async (req: Request, res: Response): Promis
   }
 };
 
-// Complete a workout template
+// In workoutController.ts
 export const completeWorkout = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const { duration, exercisesCompleted } = req.body;
+    const { duration } = req.body;
+    const userId = req.user?.id;
 
-    console.log(`Completing workout ${id} for user ${req.user?.id} with duration ${duration}`);
+    console.log(`Controller: Completing workout ${id} for user ${userId} with duration ${duration}`);
 
-    // Find the workout
-    const workout = await Workout.findById(id);
+    // Check if this ID is for a Workout or a UserWorkout
+    let workout = await Workout.findById(id);
+    let userWorkout = null;
 
     if (!workout) {
-      res.status(404).json({ message: 'Workout not found' });
-      return;
-    }
+      // If not a regular workout, check if it's a UserWorkout
+      userWorkout = await UserWorkout.findById(id);
 
-    // Get workout exercises for stats
-    const exerciseCount = workout.exercises.length;
-    console.log(`Workout has ${exerciseCount} exercises`);
-
-    // Create a completed workout record
-    const userWorkout = new UserWorkout({
-      userId: new mongoose.Types.ObjectId(req.user?.id),
-      workoutId: new mongoose.Types.ObjectId(id),
-      name: workout.name,
-      description: workout.description,
-      scheduled: new Date(),
-      completed: true,
-      completedAt: new Date(),
-      duration: duration || workout.duration,
-      exercises: workout.exercises.map(ex => ({
-        exerciseId: ex.id,
-        name: ex.name,
-        sets: Array(ex.sets).fill(null).map(() => ({
-          reps: parseInt(ex.reps.split('-')[0]),
-          weight: 0,
-          completed: true
-        }))
-      }))
-    });
-
-    const savedUserWorkout = await userWorkout.save();
-    console.log(`Created UserWorkout record: ${savedUserWorkout._id}`);
-
-    // CRITICAL: Update user progress directly in the database
-    console.log(`Updating UserProgress for user ${req.user?.id}`);
-
-    // Create or update the UserProgress document using findOneAndUpdate
-    const updateResult = await UserProgress.findOneAndUpdate(
-      { userId: req.user?.id },
-      {
-        $inc: {
-          'workoutStats.completedWorkouts': 1,
-          'workoutStats.totalDuration': duration || workout.duration,
-          'exerciseStats.totalExercises': exerciseCount
-        },
-        $set: {
-          'workoutStats.lastWorkoutDate': new Date()
-        },
-        $push: {
-          'weeklyActivity': {
-            date: new Date(),
-            duration: duration || workout.duration
-          }
-        }
-      },
-      {
-        new: true,
-        upsert: true, // Create if doesn't exist
-        setDefaultsOnInsert: true
+      if (!userWorkout) {
+        console.log(`Neither Workout nor UserWorkout found with ID: ${id}`);
+        res.status(404).json({ message: 'Workout not found' });
+        return;
       }
-    );
 
-    console.log(`UserProgress updated: ${updateResult ? 'Success' : 'Failed'}`);
-    if (updateResult) {
-      console.log(`New completed workout count: ${updateResult.workoutStats.completedWorkouts}`);
-      console.log(`New total exercise count: ${updateResult.exerciseStats.totalExercises}`);
+      // Use the UserWorkout's linked workout
+      workout = await Workout.findById(userWorkout.workoutId);
+
+      if (!workout) {
+        console.log(`UserWorkout found but linked Workout ${userWorkout.workoutId} not found`);
+        res.status(404).json({ message: 'Original workout template not found' });
+        return;
+      }
     }
+
+    console.log(`Found workout: ${workout.name}`);
+
+    // If we have a UserWorkout already, just mark it completed
+    if (userWorkout) {
+      userWorkout.completed = true;
+      userWorkout.completedAt = new Date();
+      await userWorkout.save();
+
+      console.log(`Updated existing UserWorkout: ${userWorkout._id}`);
+    } else {
+      // Create a new UserWorkout from the template
+      userWorkout = new UserWorkout({
+        userId: new mongoose.Types.ObjectId(userId),
+        workoutId: new mongoose.Types.ObjectId(id),
+        name: workout.name,
+        description: workout.description,
+        scheduled: new Date(),
+        completed: true,
+        completedAt: new Date(),
+        duration: duration || workout.duration,
+        exercises: workout.exercises.map(ex => ({
+          exerciseId: new mongoose.Types.ObjectId(ex.id),
+          name: ex.name,
+          sets: Array(ex.sets).fill(null).map(() => ({
+            reps: parseInt(ex.reps.split('-')[0]),
+            weight: 0,
+            completed: true
+          }))
+        }))
+      });
+
+      const savedUserWorkout = await userWorkout.save();
+      console.log(`Created new UserWorkout: ${savedUserWorkout._id}`);
+    }
+
+    // Update user progress
+    await updateUserProgressForCompletedWorkout(
+      userId as string,
+      duration || workout.duration,
+      workout.exercises
+    );
 
     // Record activity
     await recordUserActivity(
-      req.user?.id as string,
+      userId as string,
       'completed_workout',
       `Completed workout: ${workout.name}`,
-        (savedUserWorkout._id as string).toString()
+        (userWorkout._id as string).toString()
     );
 
     res.status(200).json({
       message: 'Workout completed successfully',
-      workoutId: id,
-      completedWorkoutId: savedUserWorkout._id
+      workout: userWorkout
     });
   } catch (error) {
     console.error('Error completing workout:', error);
-    res.status(500).json({ message: 'Error completing workout', error });
+    // @ts-ignore
+    res.status(500).json({ message: 'Error completing workout', error: error.message });
   }
 };
 // Get a specific workout by ID

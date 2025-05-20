@@ -1,5 +1,5 @@
 // backend/src/routes/workoutRoutes.ts
-import { Router } from 'express';
+import { Router, Request, Response } from 'express'; // Add the Request and Response types
 import {
   getWorkouts,
   getWorkoutById,
@@ -11,6 +11,10 @@ import {
   completeWorkout
 } from '../controllers/workoutController';
 import { authenticateUser } from '../middleware/authMiddleware';
+import mongoose from 'mongoose';
+import Workout from '../models/Workout';
+import UserWorkout from '../models/UserWorkout';
+import { updateUserProgressForCompletedWorkout, recordUserActivity } from '../utils/userProgressUtils';
 
 const router = Router();
 
@@ -40,5 +44,14 @@ router.post('/:id/complete', completeWorkout);
 
 // DELETE a workout
 router.delete('/:id', deleteWorkout);
+
+
+
+router.post('/simple-test', (req, res) => {
+  console.log('Simple test endpoint hit');
+  res.json({ success: true, message: 'Simple test successful' });
+});
+
+
 
 export default router;

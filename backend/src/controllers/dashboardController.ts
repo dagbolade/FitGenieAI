@@ -12,33 +12,32 @@ function formatWeeklyActivity(activityData: any[]): { day: string; minutes: numb
   const weeklyData = daysOfWeek.map(day => ({ day, minutes: 0 }));
 
   if (!activityData || activityData.length === 0) {
+    console.log('No weekly activity data found');
     return weeklyData;
   }
 
-  console.log("Formatting weekly activity data");
+  console.log(`Processing ${activityData.length} weekly activity entries`);
 
-  // Map to track activity by day of week
-  const activityByDay: Record<number, number> = {}; // day of week -> minutes
-
-  // Process all activity entries
+  // Process each activity entry
   for (const activity of activityData) {
     try {
-      const activityDate = new Date(activity.date);
+      let activityDate: Date;
+
+      // Handle string dates or Date objects
+      if (typeof activity.date === 'string') {
+        activityDate = new Date(activity.date);
+      } else {
+        activityDate = activity.date;
+      }
+
       const dayOfWeek = activityDate.getDay(); // 0 = Sunday, 1 = Monday, etc.
 
-      // Add to the appropriate day
-      activityByDay[dayOfWeek] = (activityByDay[dayOfWeek] || 0) + activity.duration;
+      // Add the duration to the appropriate day
+      weeklyData[dayOfWeek].minutes += activity.duration;
 
-      console.log(`Activity on ${daysOfWeek[dayOfWeek]}: +${activity.duration} minutes`);
+      console.log(`Added ${activity.duration} minutes to ${daysOfWeek[dayOfWeek]}`);
     } catch (error) {
-      console.error("Error processing activity date:", error);
-    }
-  }
-
-  // Fill in the weekly data from our map
-  for (let i = 0; i < 7; i++) {
-    if (activityByDay[i]) {
-      weeklyData[i].minutes = activityByDay[i];
+      console.error('Error processing activity date:', error);
     }
   }
 
