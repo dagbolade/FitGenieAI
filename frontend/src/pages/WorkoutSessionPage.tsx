@@ -19,7 +19,7 @@ const WorkoutSessionPage: React.FC = () => {
     duration: 0,
     caloriesBurned: 0
   });
-  const API_URL = 'http://localhost:4000/api';
+
 
   // Fetch workout data
   useEffect(() => {

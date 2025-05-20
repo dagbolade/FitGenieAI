@@ -14,10 +14,10 @@ import AICoachPage from '../pages/AICoachPage';
 import ProfilePage from '../pages/ProfilePage'; // Import ProfilePage
 import ErrorPage from '../pages/ErrorPage';
 import PrivateRoute from '../components/PrivateRoute';
-import { useAuth } from '../context/AuthContext';
+
 
 const AppRouter = () => {
-  const { isAuthenticated } = useAuth();
+
 
   const router = createBrowserRouter([
     {

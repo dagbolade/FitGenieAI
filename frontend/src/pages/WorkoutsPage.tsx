@@ -3,7 +3,6 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { apiService } from '../services/api';
 import { useNavigate } from 'react-router-dom'; // Add useNavigate
-import { useAuth } from '../context/AuthContext';
 // Types
 interface Exercise {
   id: string;
@@ -45,6 +44,7 @@ const WorkoutsPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showGenerator, setShowGenerator] = useState(false);
+
 
   const navigate = useNavigate();
 
@@ -158,20 +158,20 @@ const WorkoutsPage: React.FC = () => {
 
   // Handle equipment selection (multiple select)
   const handleEquipmentChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const options = e.target.options;
-    const selectedEquipment = [];
+  const options = e.target.options;
+  const selectedEquipmentArray: string[] = []; // Add type annotation here
 
-    for (let i = 0; i < options.length; i++) {
-      if (options[i].selected) {
-        selectedEquipment.push(options[i].value);
-      }
+  for (let i = 0; i < options.length; i++) {
+    if (options[i].selected) {
+      selectedEquipmentArray.push(options[i].value);
     }
+  }
 
-    setGeneratorForm(prev => ({
-      ...prev,
-      equipment: selectedEquipment
-    }));
-  };
+  setGeneratorForm(prev => ({
+    ...prev,
+    equipment: selectedEquipmentArray
+  }));
+};
 
   // Handle filter changes
   const handleFilterChange = (e: React.ChangeEvent<HTMLSelectElement>) => {

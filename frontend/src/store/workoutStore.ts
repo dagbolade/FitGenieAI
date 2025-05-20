@@ -16,7 +16,7 @@ interface WorkoutState {
   setCurrentWorkout: (workout: Workout | null) => void;
 }
 
-export const useWorkoutStore = create<WorkoutState>((set, get) => ({
+export const useWorkoutStore = create<WorkoutState>((set) => ({
   workouts: [],
   currentWorkout: null,
   isLoading: false,

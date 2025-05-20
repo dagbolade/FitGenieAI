@@ -1,9 +1,10 @@
 // frontend/src/pages/ProfilePage.tsx
 import React, { useState, useEffect } from 'react';
 import { apiService } from '../services/api';
+import { Link } from 'react-router-dom';
 
 const ProfilePage: React.FC = () => {
-  const [profile, setProfile] = useState<any>(null);
+  const [setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);

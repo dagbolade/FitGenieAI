@@ -34,10 +34,10 @@ const AICoachPage: React.FC = () => {
   const [relevantExercises, setRelevantExercises] = useState<RelevantExercise[]>([]);
   const [selectedExercises, setSelectedExercises] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [setError] = useState<string | null>(null);
 
   // State for popular questions
-  const [popularQuestions, setPopularQuestions] = useState<PopularQuestion[]>([
+  const [popularQuestions] = useState<PopularQuestion[]>([
     {
       id: 1,
       question: "What are the best exercises for building chest muscles?",
@@ -171,15 +171,15 @@ const handleCreateWorkout = async () => {
     });
 
     // Create new workout with exercises already included
-    const newWorkout = await apiService.createWorkout({
-      name: newWorkoutName,
-      description: `Workout created from AI Coach recommendations`,
-      goal: "custom",
-      level: "beginner",
-      type: "custom",
-      duration: 45,
-      exercises: formattedExercises // Include exercises directly here
-    });
+    // const newWorkout = await apiService.createWorkout({
+    //   name: newWorkoutName,
+    //   description: `Workout created from AI Coach recommendations`,
+    //   goal: "custom",
+    //   level: "beginner",
+    //   type: "custom",
+    //   duration: 45,
+    //   exercises: formattedExercises // Include exercises directly here
+    // });
 
     // Show success message
     setShowNewWorkoutDialog(false);

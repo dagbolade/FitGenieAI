@@ -37,9 +37,9 @@ interface DashboardStats {
   muscleGroups: Array<{ name: string; percentage: number }>;
 }
 
-interface DashboardData {
-  stats: DashboardStats;
-}
+// interface DashboardData {
+//   stats: DashboardStats;
+// }
 
 const DashboardPage: React.FC = () => {
   const [userStats, setUserStats] = useState<DashboardStats | null>(null);
@@ -48,7 +48,6 @@ const DashboardPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const API_URL = 'http://localhost:4000/api';
 
   // Get the authenticated user
   const { user } = useAuth();
@@ -165,35 +164,6 @@ const DashboardPage: React.FC = () => {
   };
 };
 
-  const repairStats = async () => {
-  try {
-    setLoading(true);
-
-    // Use your apiService instead of direct fetch
-    const response = await fetch(`${API_URL}/dashboard/repair-stats`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${localStorage.getItem('token')}`
-      }
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to repair stats');
-    }
-
-    // Fetch updated dashboard data after repair
-    await fetchDashboardData();
-
-    // Show success message
-    alert('Stats repaired successfully!');
-  } catch (error) {
-    console.error('Error repairing stats:', error);
-    setError('Failed to repair stats. Please try again.');
-  } finally {
-    setLoading(false);
-  }
-};
 
 
   // Get muscle group data for the bar chart
@@ -257,7 +227,7 @@ const chartOptions = {
   },
   scales: {
     'y-minutes': {
-      position: 'left',
+      position: 'left' as const,
       beginAtZero: true,
       title: {
         display: true,
@@ -265,7 +235,7 @@ const chartOptions = {
       },
     },
     'y-calories': {
-      position: 'right',
+      position: 'right' as const,
       beginAtZero: true,
       title: {
         display: true,

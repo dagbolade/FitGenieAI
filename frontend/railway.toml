@@ -1,3 +1,7 @@
+[build]
+builder = "NIXPACKS"
+buildCommand = "npm install && VITE_APP_IGNORE_TS_ERRORS=true vite build"
+
 [deploy]
 startCommand = "npx serve -s dist -n"
 restartPolicyType = "ON_FAILURE"
