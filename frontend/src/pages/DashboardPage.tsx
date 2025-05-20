@@ -328,12 +328,7 @@ const chartOptions = {
     return (
         <div className="container mx-auto px-4 py-8">
           <h1 className="text-3xl font-bold mb-6">Dashboard</h1>
-          <button
-              onClick={repairStats}
-              className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-1 px-3 rounded text-sm"
-          >
-            Repair Stats
-          </button>
+
           <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
             <p>{error}</p>
             <button
