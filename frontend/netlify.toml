@@ -1,7 +1,24 @@
+# netlify.toml
 [build]
-builder = "NIXPACKS"
-buildCommand = "npm install && VITE_APP_IGNORE_TS_ERRORS=true vite build"
+  command = "npm run build"
+  publish = "dist"
 
-[deploy]
-startCommand = "npx serve -s dist -n"
-restartPolicyType = "ON_FAILURE"
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[[headers]]
+  for = "/*.js"
+  [headers.values]
+    Content-Type = "application/javascript"
+
+[[headers]]
+  for = "/*.mjs"
+  [headers.values]
+    Content-Type = "application/javascript"
+
+[[headers]]
+  for = "/*.css"
+  [headers.values]
+    Content-Type = "text/css"
