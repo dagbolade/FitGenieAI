@@ -1,40 +1,25 @@
-# frontend/Dockerfile
-FROM node:16-alpine AS builder
+# Use Node 18 (which is known to work well with Vite)
+FROM node:18-alpine as build
 
 WORKDIR /app
 
-# Install dependencies
+# Copy package files
 COPY package*.json ./
 RUN npm install
 
-# Copy all files
+# Copy source files
 COPY . .
 
-# Create a custom vite.config.js that bypasses the crypto issue
-RUN echo 'import { defineConfig } from "vite"; \
-import react from "@vitejs/plugin-react"; \
-export default defineConfig({ \
-  plugins: [react()], \
-  build: { \
-    rollupOptions: { \
-      external: ["crypto"], \
-    }, \
-  }, \
-  define: { \
-    "globalThis.crypto": "{}" \
-  } \
-});' > vite.config.js
-
-# Build the application
+# Build the app
 RUN npm run build
 
-# Production environment
+# Serve with a simple static server
 FROM nginx:alpine
 
-# Copy built files from builder stage
-COPY --from=builder /app/dist /usr/share/nginx/html
+# Copy built app from build stage
+COPY --from=build /app/dist /usr/share/nginx/html
 
-# Add nginx configuration for SPA routing
+# Add nginx config for SPA routing
 RUN echo 'server { \
   listen 80; \
   location / { \
