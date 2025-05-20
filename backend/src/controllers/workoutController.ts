@@ -1,41 +1,47 @@
 // backend/src/controllers/workoutController.ts
 import { Request, Response } from 'express';
-import Workout, { IWorkout } from '../models/Workout';
-import Exercise from '../models/Exercise'; // We'll use this to get exercise details when generating workouts
+import mongoose from 'mongoose';
+import Workout from '../models/Workout';
+import Exercise from '../models/Exercise';
+import {
+  recordUserActivity,
+  updateUserProgressForCompletedWorkout,
+  updateUserProgressForCreatedWorkout
+} from '../utils/userProgressUtils';
+import UserWorkout from "../models/UserWorkout";
+import UserProgress from "../models/UserProgress";
 
-interface ExerciseDocument {
-  _id: mongoose.Types.ObjectId;
-  name: string;
-  equipment: string;
-  primaryMuscles: string[];
-  instructions: string[];
-  mechanic?: string;
-  secondaryMuscles?: string[];
-  images?: string[];
-}
-
-// Get all workouts
+// Get workouts for the current user
 export const getWorkouts = async (req: Request, res: Response): Promise<void> => {
   try {
     const { level, goal, type } = req.query;
 
-    // Build filter object
-    const filter: any = {};
+    // Build filter object with user ID
+    const filter: any = {
+      createdBy: req.user?.id // Only get workouts for the authenticated user
+    };
+
+    // Add other filters if provided
     if (level) filter.level = level;
     if (goal) filter.goal = goal;
     if (type) filter.type = type;
 
-    const workouts = await Workout.find(filter);
+    // Get workouts from database
+    const workouts = await Workout.find(filter).sort({ createdAt: -1 });
+
     res.status(200).json(workouts);
   } catch (error) {
+    console.error('Error fetching workouts:', error);
     res.status(500).json({ message: 'Error fetching workouts', error });
   }
 };
 
-// Get workout by ID
-export const getWorkoutById = async (req: Request, res: Response): Promise<void> => {
+export const addExercisesToWorkout = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
+    const { exercises } = req.body;
+
+    // Find the workout
     const workout = await Workout.findById(id);
 
     if (!workout) {
@@ -43,9 +49,156 @@ export const getWorkoutById = async (req: Request, res: Response): Promise<void>
       return;
     }
 
+    // Check if the workout belongs to the current user
+    if (workout.createdBy && workout.createdBy.toString() !== req.user?.id) {
+      res.status(403).json({ message: 'You do not have permission to update this workout' });
+      return;
+    }
+
+    // Add the new exercises to the workout
+    if (Array.isArray(exercises) && exercises.length > 0) {
+      workout.exercises = [...workout.exercises, ...exercises];
+
+      // Save the updated workout
+      const updatedWorkout = await workout.save();
+
+      // Record activity
+      await recordUserActivity(
+        req.user?.id as string,
+        'workout',
+        `Added exercises to workout: ${workout.name}`,
+        id
+      );
+
+      res.status(200).json(updatedWorkout);
+    } else {
+      res.status(400).json({ message: 'No valid exercises provided' });
+    }
+  } catch (error) {
+    console.error('Error adding exercises to workout:', error);
+    res.status(500).json({ message: 'Error adding exercises to workout', error });
+  }
+};
+
+// Complete a workout template
+export const completeWorkout = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { duration, exercisesCompleted } = req.body;
+
+    console.log(`Completing workout ${id} for user ${req.user?.id} with duration ${duration}`);
+
+    // Find the workout
+    const workout = await Workout.findById(id);
+
+    if (!workout) {
+      res.status(404).json({ message: 'Workout not found' });
+      return;
+    }
+
+    // Get workout exercises for stats
+    const exerciseCount = workout.exercises.length;
+    console.log(`Workout has ${exerciseCount} exercises`);
+
+    // Create a completed workout record
+    const userWorkout = new UserWorkout({
+      userId: new mongoose.Types.ObjectId(req.user?.id),
+      workoutId: new mongoose.Types.ObjectId(id),
+      name: workout.name,
+      description: workout.description,
+      scheduled: new Date(),
+      completed: true,
+      completedAt: new Date(),
+      duration: duration || workout.duration,
+      exercises: workout.exercises.map(ex => ({
+        exerciseId: ex.id,
+        name: ex.name,
+        sets: Array(ex.sets).fill(null).map(() => ({
+          reps: parseInt(ex.reps.split('-')[0]),
+          weight: 0,
+          completed: true
+        }))
+      }))
+    });
+
+    const savedUserWorkout = await userWorkout.save();
+    console.log(`Created UserWorkout record: ${savedUserWorkout._id}`);
+
+    // CRITICAL: Update user progress directly in the database
+    console.log(`Updating UserProgress for user ${req.user?.id}`);
+
+    // Create or update the UserProgress document using findOneAndUpdate
+    const updateResult = await UserProgress.findOneAndUpdate(
+      { userId: req.user?.id },
+      {
+        $inc: {
+          'workoutStats.completedWorkouts': 1,
+          'workoutStats.totalDuration': duration || workout.duration,
+          'exerciseStats.totalExercises': exerciseCount
+        },
+        $set: {
+          'workoutStats.lastWorkoutDate': new Date()
+        },
+        $push: {
+          'weeklyActivity': {
+            date: new Date(),
+            duration: duration || workout.duration
+          }
+        }
+      },
+      {
+        new: true,
+        upsert: true, // Create if doesn't exist
+        setDefaultsOnInsert: true
+      }
+    );
+
+    console.log(`UserProgress updated: ${updateResult ? 'Success' : 'Failed'}`);
+    if (updateResult) {
+      console.log(`New completed workout count: ${updateResult.workoutStats.completedWorkouts}`);
+      console.log(`New total exercise count: ${updateResult.exerciseStats.totalExercises}`);
+    }
+
+    // Record activity
+    await recordUserActivity(
+      req.user?.id as string,
+      'completed_workout',
+      `Completed workout: ${workout.name}`,
+        (savedUserWorkout._id as string).toString()
+    );
+
+    res.status(200).json({
+      message: 'Workout completed successfully',
+      workoutId: id,
+      completedWorkoutId: savedUserWorkout._id
+    });
+  } catch (error) {
+    console.error('Error completing workout:', error);
+    res.status(500).json({ message: 'Error completing workout', error });
+  }
+};
+// Get a specific workout by ID
+export const getWorkoutById = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+
+    const workout = await Workout.findById(id);
+
+    if (!workout) {
+      res.status(404).json({ message: 'Workout not found' });
+      return;
+    }
+
+    // Check if the workout belongs to the current user
+    if (workout.createdBy && workout.createdBy.toString() !== req.user?.id) {
+      res.status(403).json({ message: 'You do not have permission to view this workout' });
+      return;
+    }
+
     res.status(200).json(workout);
   } catch (error) {
-    res.status(500).json({ message: 'Error fetching workout', error });
+    console.error('Error fetching workout details:', error);
+    res.status(500).json({ message: 'Error fetching workout details', error });
   }
 };
 
@@ -53,109 +206,29 @@ export const getWorkoutById = async (req: Request, res: Response): Promise<void>
 export const createWorkout = async (req: Request, res: Response): Promise<void> => {
   try {
     const workoutData = req.body;
+
+    // Add the current user as the creator
+    workoutData.createdBy = new mongoose.Types.ObjectId(req.user?.id);
+
+    // Create new workout
     const newWorkout = new Workout(workoutData);
     const savedWorkout = await newWorkout.save();
 
-    res.status(201).json(savedWorkout);
-  } catch (error) {
-    res.status(500).json({ message: 'Error creating workout', error });
-  }
-};
-
-// Update a workout
-export const updateWorkout = async (req: Request, res: Response): Promise<void> => {
-  try {
-    const { id } = req.params;
-    const updateData = req.body;
-
-    const updatedWorkout = await Workout.findByIdAndUpdate(
-      id,
-      updateData,
-      { new: true, runValidators: true }
+    // Record activity
+    await recordUserActivity(
+      req.user?.id as string,
+      'workout',
+      `Created workout: ${workoutData.name}`,
+        (savedWorkout._id as string).toString()
     );
 
-    if (!updatedWorkout) {
-      res.status(404).json({ message: 'Workout not found' });
-      return;
-    }
+    // Update user progress
+    await updateUserProgressForCreatedWorkout(req.user?.id as string);
 
-    res.status(200).json(updatedWorkout);
+    res.status(201).json(savedWorkout);
   } catch (error) {
-    res.status(500).json({ message: 'Error updating workout', error });
-  }
-};
-
-// Delete a workout
-export const deleteWorkout = async (req: Request, res: Response): Promise<void> => {
-  try {
-    const { id } = req.params;
-    const deletedWorkout = await Workout.findByIdAndDelete(id);
-
-    if (!deletedWorkout) {
-      res.status(404).json({ message: 'Workout not found' });
-      return;
-    }
-
-    res.status(200).json({ message: 'Workout deleted successfully' });
-  } catch (error) {
-    res.status(500).json({ message: 'Error deleting workout', error });
-  }
-};
-
-
-import mongoose from "mongoose";
-
-// Add exercises to a user's workout
-export const addExercisesToWorkout = async (req: Request, res: Response): Promise<void> => {
-  try {
-    const { workoutId, exerciseIds } = req.body;
-
-    if (!workoutId || !exerciseIds || !Array.isArray(exerciseIds)) {
-      res.status(400).json({ message: 'Workout ID and exercise IDs are required' });
-      return;
-    }
-
-    // Find the workout
-    const workout = await Workout.findById(workoutId);
-
-    if (!workout) {
-      res.status(404).json({ message: 'Workout not found' });
-      return;
-    }
-
-    // Find all the exercises with explicit typing
-    const exercises = await Exercise.find({ _id: { $in: exerciseIds } }) as (ExerciseDocument & { _id: mongoose.Types.ObjectId })[];
-
-    if (exercises.length === 0) {
-      res.status(404).json({ message: 'No valid exercises found' });
-      return;
-    }
-
-    // Format exercises for the workout with proper typing
-    const formattedExercises = exercises.map(ex => ({
-      id: ex._id.toString(), // Now TypeScript knows _id exists and has toString()
-      name: ex.name,
-      sets: 3, // Default values
-      reps: '10-12',
-      rest_seconds: 60,
-      equipment: ex.equipment,
-      primaryMuscles: ex.primaryMuscles,
-      instructions: ex.instructions
-    }));
-
-    // Use type assertion to add exercises to workout
-    (workout.exercises as any[]).push(...formattedExercises);
-
-    // Save the updated workout
-    await workout.save();
-
-    res.status(200).json({
-      message: 'Exercises added to workout successfully',
-      workout
-    });
-  } catch (error) {
-    console.error('Error adding exercises to workout:', error);
-    res.status(500).json({ message: 'Error adding exercises to workout', error });
+    console.error('Error creating workout:', error);
+    res.status(500).json({ message: 'Error creating workout', error });
   }
 };
 
@@ -276,7 +349,7 @@ export const generateWorkout = async (req: Request, res: Response): Promise<void
       workoutDescription = `A ${split_type} workout designed to help you achieve your ${goal} goals.`;
     }
 
-    // Create the workout
+    // Create the workout with the current user as creator
     const newWorkout = new Workout({
       name: workoutName,
       description: workoutDescription,
@@ -284,14 +357,106 @@ export const generateWorkout = async (req: Request, res: Response): Promise<void
       level: level,
       type: day || split_type,
       duration: duration,
-      exercises: formattedExercises
+      exercises: formattedExercises,
+      createdBy: new mongoose.Types.ObjectId(req.user?.id)
     });
 
     // Save to database
     const savedWorkout = await newWorkout.save();
 
+    // Record activity
+    await recordUserActivity(
+      req.user?.id as string,
+      'workout',
+      `Generated workout: ${workoutName}`,
+        (savedWorkout._id as string).toString()
+    );
+
+    // Update user progress
+    await updateUserProgressForCreatedWorkout(req.user?.id as string);
+
     res.status(201).json(savedWorkout);
   } catch (error) {
+    console.error('Error generating workout:', error);
     res.status(500).json({ message: 'Error generating workout', error });
+  }
+};
+
+// Update a workout
+export const updateWorkout = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const updateData = req.body;
+
+    // Find the workout
+    const workout = await Workout.findById(id);
+
+    if (!workout) {
+      res.status(404).json({ message: 'Workout not found' });
+      return;
+    }
+
+    // Check if the workout belongs to the current user
+    if (workout.createdBy && workout.createdBy.toString() !== req.user?.id) {
+      res.status(403).json({ message: 'You do not have permission to update this workout' });
+      return;
+    }
+
+    // Update the workout
+    const updatedWorkout = await Workout.findByIdAndUpdate(
+      id,
+      updateData,
+      { new: true, runValidators: true }
+    );
+
+    // Record activity
+    await recordUserActivity(
+      req.user?.id as string,
+      'workout',
+      `Updated workout: ${workout.name}`,
+      id
+    );
+
+    res.status(200).json(updatedWorkout);
+  } catch (error) {
+    console.error('Error updating workout:', error);
+    res.status(500).json({ message: 'Error updating workout', error });
+  }
+};
+
+// Delete a workout
+export const deleteWorkout = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+
+    // Find the workout
+    const workout = await Workout.findById(id);
+
+    if (!workout) {
+      res.status(404).json({ message: 'Workout not found' });
+      return;
+    }
+
+    // Check if the workout belongs to the current user
+    if (workout.createdBy && workout.createdBy.toString() !== req.user?.id) {
+      res.status(403).json({ message: 'You do not have permission to delete this workout' });
+      return;
+    }
+
+    // Delete the workout
+    await Workout.findByIdAndDelete(id);
+
+    // Record activity
+    await recordUserActivity(
+      req.user?.id as string,
+      'workout',
+      `Deleted workout: ${workout.name}`,
+      id
+    );
+
+    res.status(200).json({ message: 'Workout deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting workout:', error);
+    res.status(500).json({ message: 'Error deleting workout', error });
   }
 };

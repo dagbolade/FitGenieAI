@@ -2,6 +2,8 @@
 import { Request, Response } from 'express';
 import { generateAIResponse } from '../utils/gemini';
 import { findRelevantExercises } from '../utils/exerciseUtils';
+import { recordUserActivity } from '../utils/userProgressUtils';
+import mongoose from 'mongoose';
 
 /**
  * AI Coach endpoint - processes user fitness questions and returns both
@@ -9,7 +11,7 @@ import { findRelevantExercises } from '../utils/exerciseUtils';
  */
 export const askCoach = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { query, user_profile } = req.body;
+    const { query, user_profile, userId } = req.body;
 
     if (!query) {
       res.status(400).json({ message: 'Query is required' });
@@ -30,10 +32,28 @@ export const askCoach = async (req: Request, res: Response): Promise<void> => {
     // Generate AI response using the Gemini API or fallback
     const response = await generateAIResponse(query, relevantExercises);
 
+    // Record the activity if userId is provided
+    let conversationId = new mongoose.Types.ObjectId().toString();
+    if (userId) {
+      console.log(`Recording activity for user: ${userId}`);
+      try {
+        await recordUserActivity(
+          userId,
+          'ai_coach',
+          `Asked about: ${query.substring(0, 30)}${query.length > 30 ? '...' : ''}`,
+          conversationId
+        );
+      } catch (activityError) {
+        // Log error but don't fail the request
+        console.error('Error recording activity:', activityError);
+      }
+    }
+
     // Return both the AI response and the relevant exercises
     res.status(200).json({
       response,
-      relevant_exercises: relevantExercises
+      relevant_exercises: relevantExercises,
+      conversation_id: conversationId
     });
   } catch (error) {
     console.error('Error processing query:', error);

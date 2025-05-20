@@ -3,9 +3,15 @@ import express from 'express';
 import cors from 'cors';
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
+
+// Import routes
+import authRoutes from './routes/authRoutes';
 import workoutRoutes from './routes/workoutRoutes';
+import userWorkoutRoutes from './routes/userWorkoutRoutes';
 import exerciseRoutes from './routes/exerciseRoutes';
-import aiCoachRoutes from './routes/aiCoachRoutes';
+import dashboardRoutes from './routes/dashboardRoutes';
+import { authenticateUser } from './middleware/authMiddleware';
+import aiCoachRoutes from "./routes/aiCoachRoutes";
 
 // Initialize environment variables
 dotenv.config();
@@ -15,13 +21,23 @@ const app = express();
 const PORT = process.env.PORT || 4000;
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: 'http://localhost:5173', // Your frontend URL
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(express.json());
 
-// Routes
-app.use('/api/workouts', workoutRoutes);
-app.use('/api/exercises', exerciseRoutes);
-app.use('/api/ai-coach', aiCoachRoutes);
+// Public routes
+app.use('/api/auth', authRoutes);
+app.use('/api/exercises', exerciseRoutes); // Exercise library is public
+
+// Protected routes
+app.use('/api/workouts', authenticateUser, workoutRoutes);
+app.use('/api/user-workouts', authenticateUser, userWorkoutRoutes);
+app.use('/api/dashboard', authenticateUser, dashboardRoutes);
+app.use('/api/ai-coach', authenticateUser, aiCoachRoutes); // AI Coach routes
+
 
 // Health check endpoint
 app.get('/health', (req, res) => {

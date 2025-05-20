@@ -2,7 +2,8 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { apiService } from '../services/api';
-
+import { useNavigate } from 'react-router-dom'; // Add useNavigate
+import { useAuth } from '../context/AuthContext';
 // Types
 interface Exercise {
   id: string;
@@ -44,6 +45,13 @@ const WorkoutsPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showGenerator, setShowGenerator] = useState(false);
+
+  const navigate = useNavigate();
+
+  const handleStartWorkout = (workoutId: string) => {
+    // Navigate to the workout session page with the workout ID
+    navigate(`/workout-session/${workoutId}`);
+  };
 
   // Form state for generator
   const [generatorForm, setGeneratorForm] = useState<GeneratorForm>({
@@ -173,6 +181,18 @@ const WorkoutsPage: React.FC = () => {
       [name]: value
     }));
   };
+
+  const handleDeleteWorkout = async (workoutId: string) => {
+  try {
+    await apiService.deleteWorkout(workoutId);
+    // Refresh workouts list after deletion
+    setWorkouts(prev => prev.filter(w => w._id !== workoutId));
+  } catch (error) {
+    console.error('Error deleting workout:', error);
+    setError('Failed to delete workout. Please try again.');
+  }
+};
+
 
   // Reset filters
   const resetFilters = () => {
@@ -434,27 +454,42 @@ const WorkoutsPage: React.FC = () => {
                       <div className="mt-2 text-sm text-gray-600 overflow-hidden h-24">
                         <ul className="list-disc pl-5">
                           {workout.exercises.slice(0, 3).map(exercise => (
-                            <li key={exercise.id}>{exercise.name}</li>
+                              <li key={exercise.id}>{exercise.name}</li>
                           ))}
                           {workout.exercises.length > 3 && (
-                            <li>...and {workout.exercises.length - 3} more</li>
+                              <li>...and {workout.exercises.length - 3} more</li>
                           )}
                         </ul>
                       </div>
                     </div>
 
-                    <div className="flex space-x-2">
+                    <div className="flex mt-4 space-x-2">
                       <Link
-                        to={`/workout/${workout._id}`}
-                        className="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-center py-2 px-4 rounded-lg transition-colors"
+                          to={`/workout/${workout._id}`}
+                          className="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-center py-2 px-4 rounded-lg transition-colors"
                       >
                         View Details
                       </Link>
                       <button
-                        className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-lg transition-colors"
-                        onClick={() => alert('Start workout feature coming soon!')}
+                          className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-lg transition-colors"
+                          onClick={() => handleStartWorkout(workout._id)}
                       >
                         Start Workout
+                      </button>
+                      <button
+                          className="bg-red-500 hover:bg-red-600 text-white p-2 rounded-lg transition-colors"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (window.confirm('Are you sure you want to delete this workout?')) {
+                              handleDeleteWorkout(workout._id);
+                            }
+                          }}
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24"
+                             stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                        </svg>
                       </button>
                     </div>
                   </div>

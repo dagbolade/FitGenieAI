@@ -213,6 +213,7 @@ async def generate_workout(user_profile: UserProfile):
         compound_exercises = [ex for ex in filtered_exercises if ex.get("mechanic") == "compound"]
         isolation_exercises = [ex for ex in filtered_exercises if ex.get("mechanic") == "isolation"]
 
+
         # Aim for 60% compound, 40% isolation
         num_compound = max(1, int(num_exercises * 0.6))
         num_isolation = num_exercises - num_compound
