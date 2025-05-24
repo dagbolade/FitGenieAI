@@ -23,6 +23,7 @@ const PORT = process.env.PORT || 4000;
 
 // Middleware
 app.use(cors({
+    // Allow requests from the frontend URL or any origin
   origin: process.env.FRONTEND_URL || '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization']
