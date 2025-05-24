@@ -8,8 +8,12 @@ declare global {
   }
 }
 
-
-const API_URL = window.APP_CONFIG?.API_URL || import.meta.env.VITE_API_URL || 'http://localhost:4000/api';
+// Function to get the current API URL dynamically
+const getApiUrl = () => {
+  const url = window.APP_CONFIG?.API_URL || import.meta.env.VITE_API_URL || 'http://localhost:4000/api';
+  console.log('Getting API URL:', url); // For debugging
+  return url;
+};
 
 // Helper function to get auth token
 const getToken = () => localStorage.getItem('token');
@@ -24,11 +28,10 @@ const createAuthHeaders = () => {
 };
 
 export const apiService = {
-  API_URL, // Export the API_URL for access in other components
-
-  // Authentication functions
+  // Update register function to use dynamic URL
   register: async (userData: any) => {
     try {
+      const API_URL = getApiUrl(); // Get URL dynamically
       const response = await fetch(`${API_URL}/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
