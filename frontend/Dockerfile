@@ -10,10 +10,14 @@ RUN npm install
 # Copy source files
 COPY . .
 
-# Build the app
+# Build the app with Railway's environment variables
+# We'll pass VITE_API_URL as a build argument
+ARG VITE_API_URL
+ENV VITE_API_URL=$VITE_API_URL
+
 RUN npm run build
 
-# Serve with a simple static server
+# Serve with nginx
 FROM nginx:alpine
 
 # Copy built app from build stage

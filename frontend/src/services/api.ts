@@ -1,5 +1,5 @@
 // frontend/src/services/api.ts
-const API_URL = import.meta.env.VITE_API_URL || 'https://acceptable-courage-production.up.railway.app/api';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api';
 
 // Helper function to get auth token
 const getToken = () => localStorage.getItem('token');
