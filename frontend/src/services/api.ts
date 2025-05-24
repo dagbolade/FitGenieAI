@@ -1,5 +1,15 @@
 // frontend/src/services/api.ts
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api';
+
+declare global {
+  interface Window {
+    APP_CONFIG?: {
+      API_URL: string;
+    };
+  }
+}
+
+
+const API_URL = window.APP_CONFIG?.API_URL || import.meta.env.VITE_API_URL || 'http://localhost:4000/api';
 
 // Helper function to get auth token
 const getToken = () => localStorage.getItem('token');
