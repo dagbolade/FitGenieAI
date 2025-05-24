@@ -19,16 +19,15 @@ FROM nginx:alpine
 # Copy built app from build stage
 COPY --from=build /app/dist /usr/share/nginx/html
 
-# Add nginx config for SPA routing
+# Add nginx config for SPA routing with dynamic port
 RUN echo 'server { \
-  listen 80; \
+  listen $PORT; \
   location / { \
     root /usr/share/nginx/html; \
     index index.html; \
     try_files $uri $uri/ /index.html; \
   } \
-}' > /etc/nginx/conf.d/default.conf
+}' > /etc/nginx/conf.d/default.conf.template
 
-EXPOSE 80
-
-CMD ["nginx", "-g", "daemon off;"]
+# Use envsubst to replace $PORT with actual port value
+CMD ["/bin/sh", "-c", "envsubst '$$PORT' < /etc/nginx/conf.d/default.conf.template > /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"]
